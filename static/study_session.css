@@ -1,0 +1,204 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #2b4783;
+    display: flex;
+    height: 100vh;
+    margin: 0;
+}
+
+.side-panel {
+    background-color: #1a202c;
+    padding: 25px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 300px;
+    box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+}
+
+.side-panel-logo {
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.5);
+}
+
+.main-content {
+    margin-left: 330px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.side-panel .button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    text-decoration: none;
+    color: #e2e8f0;
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 15px;
+}
+
+.side-panel .button:hover {
+    background-color: rgba(102, 126, 234, 0.2);
+    color: white;
+    transform: translateX(5px);
+}
+
+/* Active page button - Different for study session */
+.side-panel .button.studysession {
+    background-color: rgba(102, 126, 234, 0.3);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Add icons to sidebar buttons */
+.side-panel > .button:nth-child(2)::before { content: "🏠"; }
+.side-panel > .button:nth-child(3)::before { content: "📖"; }
+.side-panel > .button:nth-child(4)::before { content: "✅"; }
+.side-panel > .button:nth-child(5)::before { content: "📝"; }
+.side-panel > .button:nth-child(6)::before { content: "☕"; }
+.side-panel > .button:nth-child(7)::before { content: "📊"; }
+
+/* Form styling - Keep your existing form styles */
+.session-form {
+    max-width: 900px;
+    margin: auto;
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.session-form h1 {
+    color: #667eea;
+    margin-top: 0;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.time-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: Arial, sans-serif;
+}
+
+.confirm-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.confirm-group input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+/* Submit button - Different from sidebar buttons */
+.submit-button {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background-color: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+}
+
+.submit-button:hover {
+    background-color: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button {
+    display: inline-block;
+    text-decoration: none;
+    margin-left: 1185px;
+    margin-top: 25px;
+    margin-bottom: 50px;
+    padding: 15px 50px;
+    background-color: #667eea;
+    color: white;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button:hover {
+    cursor: pointer;
+    background-color: white;
+    color: #667eea;
+}
+
+.error-message {
+    background-color: #fed7d7;
+    border: 1px solid #fc8181;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 30px;
+    color: #c53030;
+    font-size: 15px;
+    font-weight: bold;
+    text-align: center;
+}
+
+

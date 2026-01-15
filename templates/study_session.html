@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Study Session</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='study_session.css') }}">
+</head>
+
+<body>
+    <div class="side-panel">
+        <div class="side-panel-logo">
+            <h2>📚 Study Tracker</h2>
+        </div>
+        <a href="{{url_for('home')}}" class="button">Home</a>
+        <a href="#" class="button studysession">Study Session</a>
+        <a href="{{url_for('homework')}}" class="button">Homework Tasks</a>
+        <a href="{{url_for('notes')}}" class="button">Notes</a>
+        <a href="{{url_for('break_time')}}" class="button">Break Time</a>
+        <a href="{{url_for('study_summary')}}" class="button">Study Summary</a>
+    </div>
+
+    <div class="main-content">
+        <a href="{{url_for('login')}}" class="logout-button">Logout</a>
+
+        <form class="session-form" method="POST" action="{{ url_for('save_study_session') }}">
+            <h1>📖 Log Study Session</h1>
+            
+            <div class="form-group">
+                <label for="course">Course:</label>
+                <input type="text" id="course" name="course" placeholder="Example: CS 135" required>
+            </div>
+
+            <div class="form-group">
+                <label for="topic">Topic (Optional):</label>
+                <input type="text" id="topic" name="topic" placeholder="Example: Recursion">
+            </div>
+
+            <div class="form-group">
+                <div class="time-inputs">
+                    <div>
+                        <label for="time_in">Start Time:</label>
+                        <input type="time" id="time_in" name="time_in" required>
+                    </div>
+                    <div>
+                        <label for="time_out">End Time:</label>
+                        <input type="time" id="time_out" name="time_out" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Notes (Optional):</label>
+                <textarea id="notes" name="notes" placeholder="What did you learn? Any challenges?"></textarea>
+            </div>
+
+            <div class="form-group">
+                <div class="confirm-group">
+                    <input type="checkbox" id="confirm" name="confirm" required>
+                    <label for="confirm" style="margin-bottom: 0;">I confirm this study session is accurate</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="error-message">
+                    {% for category, message in messages %}
+                    <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+            </div>
+
+            <button type="submit" class="submit-button">Submit Session</button>
+        </form>
+    </div>
+</body>
+</html>

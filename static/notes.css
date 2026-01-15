@@ -1,0 +1,224 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #2b4783;
+    display: flex;
+    height: 100vh;
+    margin: 0;
+}
+
+.side-panel {
+    background-color: #1a202c;
+    padding: 25px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 300px;
+    box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+}
+
+.side-panel-logo {
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.5);
+}
+
+.main-content {
+    margin-left: 330px;
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 50px;
+}
+
+/* Sidebar buttons */
+.side-panel .button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    text-decoration: none;
+    color: #e2e8f0;
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 15px;
+}
+
+.side-panel .button:hover {
+    background-color: rgba(102, 126, 234, 0.2);
+    color: white;
+    transform: translateX(5px);
+}
+
+/* Active page button */
+.side-panel .button.notes {
+    background-color: rgba(102, 126, 234, 0.3);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Add icons to sidebar buttons */
+.side-panel > .button:nth-child(2)::before { content: "🏠"; }
+.side-panel > .button:nth-child(3)::before { content: "📖"; }
+.side-panel > .button:nth-child(4)::before { content: "✅"; }
+.side-panel > .button:nth-child(5)::before { content: "📝"; }
+.side-panel > .button:nth-child(6)::before { content: "☕"; }
+.side-panel > .button:nth-child(7)::before { content: "📊"; }
+
+.notes-container {
+    max-width: 1200px;
+    margin: auto;
+    padding: 20px;
+}
+
+.notes-container h1 {
+    color: white;
+    text-align: center;
+    margin-bottom: 40px;
+    font-size: 36px;
+}
+
+.notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 25px;
+}
+
+.note-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    border-left: 5px solid #667eea;
+}
+
+.note-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.note-course {
+    font-size: 20px;
+    font-weight: bold;
+    color: #667eea;
+}
+
+.note-date {
+    font-size: 14px;
+    color: #718096;
+    background: #f7fafc;
+    padding: 5px 12px;
+    border-radius: 20px;
+}
+
+.note-topic {
+    margin-bottom: 12px;
+    color: #2d3748;
+    font-size: 15px;
+}
+
+.note-topic strong {
+    color: #667eea;
+}
+
+.note-time {
+    margin-bottom: 15px;
+    color: #718096;
+    font-size: 14px;
+}
+
+.note-content {
+    color: #2d3748;
+    line-height: 1.6;
+    font-size: 15px;
+    background: #f7fafc;
+    padding: 15px;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.no-notes {
+    background: white;
+    border-radius: 15px;
+    padding: 80px 40px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.no-notes-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+}
+
+.no-notes h2 {
+    color: #2d3748;
+    margin-bottom: 10px;
+}
+
+.no-notes p {
+    color: #718096;
+    font-size: 18px;
+    margin-bottom: 30px;
+}
+
+.add-session-button {
+    display: inline-block;
+    padding: 15px 35px;
+    background-color: #667eea;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.add-session-button:hover {
+    background-color: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button {
+    display: inline-block;
+    text-decoration: none;
+    margin-left: 1185px;
+    margin-top: 25px;
+    margin-bottom: 50px;
+    padding: 15px 50px;
+    background-color: #667eea;
+    color: white;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button:hover {
+    cursor: pointer;
+    background-color: white;
+    color: #667eea;
+}

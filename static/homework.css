@@ -1,0 +1,282 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #2b4783;
+    display: flex;
+    height: 100vh;
+    margin: 0;
+}
+
+.side-panel {
+    background-color: #1a202c;
+    padding: 25px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 300px;
+    box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+}
+
+.side-panel-logo {
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.5);
+}
+
+.main-content {
+    margin-left: 330px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Sidebar buttons */
+.side-panel .button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    text-decoration: none;
+    color: #e2e8f0;
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 15px;
+}
+
+.side-panel .button:hover {
+    background-color: rgba(102, 126, 234, 0.2);
+    color: white;
+    transform: translateX(5px);
+}
+
+/* Active page button */
+.side-panel .button.homework {
+    background-color: rgba(102, 126, 234, 0.3);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Add icons to sidebar buttons */
+.side-panel > .button:nth-child(2)::before { content: "🏠"; }
+.side-panel > .button:nth-child(3)::before { content: "📖"; }
+.side-panel > .button:nth-child(4)::before { content: "✅"; }
+.side-panel > .button:nth-child(5)::before { content: "📝"; }
+.side-panel > .button:nth-child(6)::before { content: "☕"; }
+.side-panel > .button:nth-child(7)::before { content: "📊"; }
+
+.homework-form {
+    max-width: 900px;
+    margin: auto;
+    margin-bottom: 25px;
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.homework-form h1 {
+    color: #667eea;
+    margin-top: 0;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+input,
+select {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.homework-list {
+    max-width: 900px;
+    margin: auto;
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.homework-list h2 {
+    color: #667eea;
+    margin-top: 0;
+    margin-bottom: 0px;
+}
+
+.task-item {
+    background: #f7fafc;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+    margin-top: 15px;
+    margin-bottom: 0px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.task-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.task-item.completed {
+    opacity: 0.6;
+    border-left-color: #48bb78;
+    background: #f0fff4;
+}
+
+.task-info {
+    flex: 1;
+}
+
+.task-course {
+    font-size: 14px;
+    color: #667eea;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.task-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 5px;
+}
+
+.task-name.completed {
+    text-decoration: line-through;
+}
+
+.task-due {
+    color: #718096;
+    font-size: 14px;
+}
+
+.task-due.overdue {
+    color: #e53e3e;
+    font-weight: 600;
+}
+
+.task-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    color: white;
+}
+
+.complete-button {
+    background-color: #48bb78;
+}
+
+.complete-button:hover {
+    background-color: #38a169;
+}
+
+.uncomplete-button {
+    background-color: #ed8936;
+}
+
+.uncomplete-button:hover {
+    background-color: #dd6b20;
+}
+
+.delete-button {
+    background-color: #f56565;
+}
+
+.delete-button:hover {
+    background-color: #e53e3e;
+}
+
+.no-tasks {
+    text-align: center;
+    color: #718096;
+    padding: 30px;
+    font-style: italic;
+}
+
+.submit-button {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background-color: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+}
+
+.submit-button:hover {
+    background-color: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button {
+    display: inline-block;
+    text-decoration: none;
+    margin-left: 1185px;
+    margin-top: 25px;
+    margin-bottom: 50px;
+    padding: 15px 50px;
+    background-color: #667eea;
+    color: white;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.logout-button:hover {
+    cursor: pointer;
+    background-color: white;
+    color: #667eea;
+}

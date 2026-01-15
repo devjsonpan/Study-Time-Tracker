@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Study Summary</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='study_summary.css') }}">
+</head>
+
+<body>
+    <div class="side-panel">
+        <div class="side-panel-logo">
+            <h2>📚 Study Tracker</h2>
+        </div>
+        <a href="{{url_for('home')}}" class="button">Home</a>
+        <a href="{{url_for('study_session')}}" class="button">Study Session</a>
+        <a href="{{url_for('homework')}}" class="button">Homework Tasks</a>
+        <a href="{{url_for('notes')}}" class="button">Notes</a>
+        <a href="{{url_for('break_time')}}" class="button">Break Time</a>
+        <a href="#" class="button studysummary">Study Summary</a>
+    </div>
+
+    <div class="main-content">
+        <a href="{{url_for('login')}}" class="logout-button">Logout</a>
+
+        <div class="summary-header">
+            <h1>📊 Study Summary Dashboard</h1>
+            <p>View study sessions and progress for all users</p>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <tr>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Study Sessions</th>
+                    <th>Breaks</th>
+                    <th>Total Hours</th>
+                </tr>
+
+                {% for user in all_users %}
+                <tr>
+                    <td class="user-name">{{ user.fullname }}</td>
+                    <td>{{ current_date.strftime('%Y-%m-%d') }}</td>
+                    
+                    <td>
+                        {% if all_study_session_data[loop.index0] %}
+                            {% for entry in all_study_session_data[loop.index0] %}
+                            <div class="session-entry">
+                                <span class="cpurse-badge">{{ entry.course }}</span>
+                                {{ entry.time_in.strftime('%H:%M') }} - {{ entry.time_out.strftime('%H:%M') }}
+                                {% if entry.topic %}
+                                <br><small>📝 {{ entry.topic }}</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <span class="no-data">No sessions logged</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if all_break_data[loop.index0] %}
+                            {% for entry in all_break_data[loop.index0] %}
+                            <div class="session-entry">
+                                {{ entry.time_in.strftime('%H:%M') }} - {{ entry.time_out.strftime('%H:%M') }}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <span class="no-data">No breaks logged</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="total-hours">
+                        {% set total_minutes_worked_list = [] %}
+                        {% for entry in all_study_session_data[loop.index0] %}
+                            {% set time_in_minutes = entry.time_in.hour * 60 + entry.time_in.minute %}
+                            {% set time_out_minutes = entry.time_out.hour * 60 + entry.time_out.minute %}
+                            {% set minutes_worked = time_out_minutes - time_in_minutes %}
+                            {% set new_list = total_minutes_worked_list.append(minutes_worked) %}
+                        {% endfor %}
+                        {% set total_minutes_worked = total_minutes_worked_list | sum %}
+                        {% set total_hours_worked = total_minutes_worked // 60 %}
+                        {% set remaining_minutes = total_minutes_worked % 60 %}
+                        
+                        {% if total_minutes_worked > 0 %}
+                            {{ total_hours_worked }}h {{ remaining_minutes }}m
+                        {% else %}
+                            <span class="no-data">0h 0m</span>
+                        {% endif %}
+                    </td>          
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</body>
+</html>

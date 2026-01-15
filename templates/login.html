@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - Study Tracker</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
+</head>
+
+<body>
+    <div class="login-wrapper">
+        <div class="login-container">
+            <h2>📚 Study Tracker</h2>
+        
+            <form method="POST">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" placeholder="Enter your username" name="username" id="username" required>
+                </div>
+            
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" placeholder="Enter your password" name="password" id="password" required>
+                </div>
+            
+                <button type="submit">Login</button>
+            </form>
+
+            <div class="register-link">
+                Don't have an account? <a href="{{url_for('register')}}">Register here</a>
+            </div>
+        
+            {% if error %}
+            <div class="error-message">
+                {{ error }}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="info-section">
+            <h1>About this Website</h1>
+            <p>This is a personal project built to help students track their study times and stay accountable with friends!</p>
+            
+            <div class="benefit-list">
+                <div class="benefit-item">Simple & easy to use</div>
+                <div class="benefit-item">Track study sessions with friends</div>
+                <div class="benefit-item">See your weekly progress</div>
+                <div class="benefit-item">Completely free</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

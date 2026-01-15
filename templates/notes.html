@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Study Notes</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='notes.css') }}">
+</head>
+
+<body>
+    <div class="side-panel">
+        <div class="side-panel-logo">
+            <h2>📚 Study Tracker</h2>
+        </div>
+        <a href="{{url_for('home')}}" class="button">Home</a>
+        <a href="{{url_for('study_session')}}" class="button">Study Session</a>
+        <a href="{{url_for('homework')}}" class="button">Homework Tasks</a>
+        <a href="#" class="button notes">Notes</a>
+        <a href="{{url_for('break_time')}}" class="button">Break Time</a>
+        <a href="{{url_for('study_summary')}}" class="button">Study Summary</a>
+    </div>
+
+    <div class="main-content">
+        <a href="{{url_for('login')}}" class="logout-button">Logout</a>
+        
+        <div class="notes-container">
+            <h1>📝 Study Notes</h1>
+            
+            {% if sessions %}
+                <div class="notes-grid">
+                    {% for session in sessions %}
+                    <div class="note-card">
+                        <div class="note-header">
+                            <div class="note-course">{{ session.course }}</div>
+                            <div class="note-date">{{ session.date.strftime('%b %d, %Y') }}</div>
+                        </div>
+                        
+                        {% if session.topic %}
+                        <div class="note-topic">
+                            <strong>Topic:</strong> {{ session.topic }}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="note-time">
+                            <span>🕐 {{ session.time_in.strftime('%I:%M %p') }} - {{ session.time_out.strftime('%I:%M %p') }}</span>
+                        </div>
+                        
+                        <div class="note-content">
+                            {{ session.notes }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-notes">
+                    <div class="no-notes-icon">📝</div>
+                    <h2>No study notes yet!</h2>
+                    <p>Add notes to your study sessions to see them here.</p>
+                    <a href="{{ url_for('study_session') }}" class="add-session-button">Log a Study Session</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

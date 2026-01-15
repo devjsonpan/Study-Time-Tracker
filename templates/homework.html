@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Homework Tasks</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='homework.css') }}">
+</head>
+
+<body>
+    <div class="side-panel">
+        <div class="side-panel-logo">
+            <h2>📚 Study Tracker</h2>
+        </div>
+        <a href="{{url_for('home')}}" class="button">Home</a>
+        <a href="{{url_for('study_session')}}" class="button">Study Session</a>
+        <a href="#" class="button homework">Homework Tasks</a>
+        <a href="{{url_for('notes')}}" class="button">Notes</a>
+        <a href="{{url_for('break_time')}}" class="button">Break Time</a>
+        <a href="{{url_for('study_summary')}}" class="button">Study Summary</a>
+    </div>
+
+    <div class="main-content">
+        <a href="{{url_for('login')}}" class="logout-button">Logout</a>
+
+        <form class="homework-form" method="POST" action="{{ url_for('save_homework') }}">
+            <h1>✅ Add Homework Task</h1>
+                
+            <div class="form-group">
+                <label for="course">Course:</label>
+                <input type="text" id="course" name="course" placeholder="Example: CS 135" required>
+            </div>
+
+            <div class="form-group">
+                <label for="task_name">Task:</label>
+                <input type="text" id="task_name" name="task_name" placeholder="Example: Assignment 1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="due_date">Due Date:</label>
+                <input type="date" id="due_date" name="due_date" required>
+            </div>
+
+            <button type="submit" class="submit-button">Add Task</button>
+        </form>
+
+        <div class="homework-list">
+            <h2>📋 Your Homework Tasks</h2>
+            {% if tasks %}
+                {% for task in tasks %}
+                <div class="task-item {% if task.is_completed %}completed{% endif %}">
+                    <div class="task-info">
+                        <div class="task-course">{{ task.course }}</div>
+                        <div class="task-name {% if task.is_completed %}completed{% endif %}">{{ task.task_name }}</div>
+                        <div class="task-due {% if task.due_date < current_date and not task.is_completed %}overdue{% endif %}">
+                            Due: {{ task.due_date.strftime('%B %d, %Y') }}
+                            {% if task.due_date < current_date and not task.is_completed %}
+                                (OVERDUE!)
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        {% if task.is_completed %}
+                            <a href="{{ url_for('complete_task', task_id=task.id) }}" class="action-button uncomplete-button">Undo</a>
+                        {% else %}
+                            <a href="{{ url_for('complete_task', task_id=task.id) }}" class="action-button complete-button">Complete</a>
+                        {% endif %}
+                        <a href="{{ url_for('delete_task', task_id=task.id) }}" class="action-button delete-button" onclick="return confirm('Are you sure you want to delete this task?')">Delete</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-tasks">
+                    No homework tasks yet. Add your first task above!
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
