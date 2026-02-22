@@ -80,6 +80,14 @@ h2 {
     margin-bottom: 20px;
 }
 
+.subtitle {
+    text-align: center;
+    color: #718096;
+    margin-top: 0px;
+    margin-bottom: 35px;
+    font-size: 14px;
+}
+
 label {
     display: block;
     margin-bottom: 8px;

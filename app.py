@@ -1,5 +1,5 @@
 # Import the necessary modules from the libraries
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, get_flashed_messages
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_session import Session
@@ -24,6 +24,8 @@ class User(db.Model):
     username = db.Column(db.String, unique=True, nullable=False)
     fullname = db.Column(db.String, nullable=False)
     password = db.Column(db.String, nullable=False)
+    security_question = db.Column(db.String, nullable=False)
+    security_answer = db.Column(db.String, nullable=False)
 
 # Define the StudySession model for the database
 class StudySession(db.Model):
@@ -58,6 +60,16 @@ class BreakEntry(db.Model):
 @app.route('/', methods=['GET', 'POST'])
 def login():
     error = None
+    success = None
+    show_reset_form = request.args.get('forgot') == '1'
+    
+    # Check for flash messages
+    flashed_messages = get_flashed_messages(with_categories=True)
+    for category, message in flashed_messages:
+        if category == 'success':
+            success = message
+        elif category == 'error':
+            error = message
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -71,7 +83,59 @@ def login():
         else:
             error = 'Invalid login credentials. Please try again.'
 
-    return render_template('login.html', error=error)
+    return render_template('login.html', error=error, success=success, show_reset_form=show_reset_form)
+
+# Route for password reset
+@app.route('/reset_password', methods=['POST'])
+def reset_password():
+    error = None
+    success = None
+    username = request.form.get('username')
+    security_answer = request.form.get('security_answer')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+    
+    user = User.query.filter_by(username=username).first()
+    
+    if not user:
+        error = 'Username not found.'
+        return render_template('login.html', 
+                             error=error, 
+                             show_reset_form=True, 
+                             username=username)
+    
+    # If security answer not provided yet, show the question
+    if not security_answer:
+        return render_template('login.html', 
+                             show_reset_form=True, 
+                             security_question=user.security_question,
+                             username=username)
+    
+    # Verify security answer (case-insensitive)
+    if security_answer.lower().strip() != user.security_answer:
+        error = 'Incorrect security answer. Please try again.'
+        return render_template('login.html', 
+                             error=error, 
+                             show_reset_form=True, 
+                             security_question=user.security_question,
+                             username=username)
+    
+    # Check if passwords match
+    if new_password != confirm_password:
+        error = 'Passwords do not match.'
+        return render_template('login.html', 
+                             error=error, 
+                             show_reset_form=True, 
+                             security_question=user.security_question,
+                             username=username)
+    
+    # Update password
+    user.password = new_password
+    db.session.commit()
+    
+    # Redirect to login page with success message
+    flash('Password reset successful! You can now login with your new password.', 'success')
+    return redirect(url_for('login'))
 
 # Route for the registration page
 @app.route('/register', methods=['GET', 'POST'])
@@ -83,17 +147,32 @@ def register():
         fullname = request.form.get('fullname')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
+        security_question = request.form.get('security_question')
+        security_answer = request.form.get('security_answer')
 
+        # Check if passwords match
         if password != confirm_password:
             error = 'Passwords do not match. Please try again.'
             return render_template('register.html', error=error)
         
+        # Check if security answer is provided
+        if not security_answer or len(security_answer.strip()) == 0:
+            error = 'Please provide a security answer.'
+            return render_template('register.html', error=error)
+            
         existing_user = User.query.filter_by(username=username).first()
         
+        # Check if new user can be created
         if existing_user:
             error = 'Username is already taken. Please choose a different username.'
         else:
-            new_user = User(username=username, fullname=fullname, password=password)
+            new_user = User(
+                username=username, 
+                fullname=fullname, 
+                password=password, 
+                security_question=security_question,
+                security_answer=security_answer.lower().strip()
+            )
             db.session.add(new_user)
             db.session.commit()
 

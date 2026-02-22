@@ -12,6 +12,52 @@
         <div class="login-container">
             <h2>📚 Study Tracker</h2>
         
+            <!-- Toggle between Login and Forgot Password -->
+            {% if show_reset_form %}
+            <!-- FORGOT PASSWORD FORM -->
+            <p class="subtitle">Follow the steps below to reset your password!</p>
+            
+            <form method="POST" action="{{ url_for('reset_password') }}">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" placeholder="Enter your username" name="username" id="username" value="{{ username or '' }}" required>
+                </div>
+
+                {% if security_question %}
+                <div class="form-group">
+                    <label>Your Security Question:</label>
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 10px; color: #2d3748; font-weight: 500;">
+                        {{ security_question }}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="security_answer">Your Answer</label>
+                    <input type="text" placeholder="Enter your answer" name="security_answer" id="security_answer" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" placeholder="Enter new password" name="new_password" id="new_password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">Confirm New Password</label>
+                    <input type="password" placeholder="Re-enter new password" name="confirm_password" id="confirm_password" required>
+                </div>
+                {% endif %}
+            
+                <button type="submit">
+                    {% if security_question %}Reset Password{% else %}Continue{% endif %}
+                </button>
+            </form>
+
+            <div class="register-link">
+                Remember your password? <a href="{{ url_for('login') }}">Back to Login</a>
+            </div>
+
+            {% else %}
+            <!-- LOGIN FORM -->
             <form method="POST">
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -29,10 +75,21 @@
             <div class="register-link">
                 Don't have an account? <a href="{{url_for('register')}}">Register here</a>
             </div>
+
+            <div class="register-link" style="margin-top: 10px;">
+                <a href="{{ url_for('login', forgot=1) }}">Forgot your password?</a>
+            </div>
+            {% endif %}
         
             {% if error %}
             <div class="error-message">
                 {{ error }}
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div style="text-align: center; color: #38a169; background-color: #f0fff4; padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 14px; border: 1px solid #9ae6b4;">
+                {{ success }}
             </div>
             {% endif %}
         </div>
