@@ -47,7 +47,7 @@
                         {% if all_study_session_data[loop.index0] %}
                             {% for entry in all_study_session_data[loop.index0] %}
                             <div class="session-entry">
-                                <span class="cpurse-badge">{{ entry.course }}</span>
+                                <span class="course-badge">{{ entry.course }}</span>
                                 {{ entry.time_in.strftime('%H:%M') }} - {{ entry.time_out.strftime('%H:%M') }}
                                 {% if entry.topic %}
                                 <br><small>📝 {{ entry.topic }}</small>
