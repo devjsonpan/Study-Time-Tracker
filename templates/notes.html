@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='notes.css') }}">
+    <script src="{{ url_for('static', filename='notes.js') }}"></script>
 </head>
 
 <body>
@@ -26,10 +27,20 @@
         <div class="notes-container">
             <h1>📝 Study Notes</h1>
             
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}" style="background-color: {% if category == 'success' %}#c6f6d5{% else %}#fed7d7{% endif %}; color: {% if category == 'success' %}#22543d{% else %}#742a2a{% endif %}; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
             {% if sessions %}
                 <div class="notes-grid">
                     {% for session in sessions %}
-                    <div class="note-card">
+                    <div class="note-card" id="note-{{ session.id }}">
                         <div class="note-header">
                             <div class="note-course">{{ session.course }}</div>
                             <div class="note-date">{{ session.date.strftime('%b %d, %Y') }}</div>
@@ -47,6 +58,11 @@
                         
                         <div class="note-content">
                             {{ session.notes }}
+                        </div>
+                        
+                        <div class="note-actions">
+                            <button class="edit-btn" onclick="editNote({{ session.id }})">✏️ Edit</button>
+                            <button class="delete-btn" onclick="deleteNote({{ session.id }})">🗑️ Delete</button>
                         </div>
                     </div>
                     {% endfor %}

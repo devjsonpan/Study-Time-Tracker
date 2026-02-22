@@ -358,6 +358,50 @@ def notes():
     
     return render_template('notes.html', sessions=sessions_with_notes)
 
+# Route for deleting a note
+@app.route('/delete_note/<int:session_id>')
+def delete_note(session_id):
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+    
+    username = session['username']
+    # Find the study session
+    study_session = StudySession.query.get_or_404(session_id)
+    
+    # Make sure user can only delete their own notes
+    if study_session.username == username:
+        # Clear the notes field (we're not deleting the session, just the notes)
+        study_session.notes = None
+        db.session.commit()
+        flash('Note deleted successfully!', 'success')
+    else:
+        flash('You do not have permission to delete this note.', 'error')
+    
+    return redirect(url_for('notes'))
+
+# Route for editing a note
+@app.route('/edit_note/<int:session_id>', methods=['POST'])
+def edit_note(session_id):
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+    
+    username = session['username']
+    # Find the study session
+    study_session = StudySession.query.get_or_404(session_id)
+    
+    # Make sure user can only edit their own notes
+    if study_session.username == username:
+        # Update the fields
+        study_session.course = request.form.get('course')
+        study_session.topic = request.form.get('topic')
+        study_session.notes = request.form.get('notes')
+        db.session.commit()
+        flash('Note updated successfully!', 'success')
+    else:
+        flash('You do not have permission to edit this note.', 'error')
+    
+    return redirect(url_for('notes'))
+
 # Route for the study summary page
 @app.route('/summary')
 def study_summary():
