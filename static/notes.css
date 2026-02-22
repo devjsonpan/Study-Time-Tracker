@@ -155,7 +155,7 @@ body {
     background: #f7fafc;
     padding: 15px;
     border-radius: 8px;
-    white-space: pre-wrap;
+    white-space: pre-line;
     word-wrap: break-word;
 }
 
