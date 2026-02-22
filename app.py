@@ -89,7 +89,6 @@ def login():
 @app.route('/reset_password', methods=['POST'])
 def reset_password():
     error = None
-    success = None
     username = request.form.get('username')
     security_answer = request.form.get('security_answer')
     new_password = request.form.get('new_password')
