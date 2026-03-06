@@ -66,13 +66,33 @@ body {
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-.side-panel > .button:nth-child(2)::before { content: "🏠"; }
-.side-panel > .button:nth-child(3)::before { content: "📖"; }
-.side-panel > .button:nth-child(4)::before { content: "✅"; }
-.side-panel > .button:nth-child(5)::before { content: "📝"; }
-.side-panel > .button:nth-child(6)::before { content: "🗓️"; }
-.side-panel > .button:nth-child(7)::before { content: "☕"; }
-.side-panel > .button:nth-child(8)::before { content: "📊"; }
+.side-panel>.button:nth-child(2)::before {
+    content: "🏠";
+}
+
+.side-panel>.button:nth-child(3)::before {
+    content: "📖";
+}
+
+.side-panel>.button:nth-child(4)::before {
+    content: "✅";
+}
+
+.side-panel>.button:nth-child(5)::before {
+    content: "📝";
+}
+
+.side-panel>.button:nth-child(6)::before {
+    content: "🗓️";
+}
+
+.side-panel>.button:nth-child(7)::before {
+    content: "☕";
+}
+
+.side-panel>.button:nth-child(8)::before {
+    content: "📊";
+}
 
 .logout-button {
     display: inline-block;
@@ -110,7 +130,7 @@ body {
 }
 
 .summary-header p {
-    color: rgba(255,255,255,0.7);
+    color: rgba(255, 255, 255, 0.7);
     margin: 0;
     font-size: 15px;
 }
@@ -125,7 +145,7 @@ body {
 .tabs {
     display: flex;
     gap: 10px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     padding: 6px;
     border-radius: 12px;
     width: fit-content;
@@ -140,18 +160,18 @@ body {
     font-weight: 600;
     transition: all 0.2s ease;
     background: transparent;
-    color: rgba(255,255,255,0.7);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .tab.active {
     background: white;
     color: #2d3748;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .tab:hover:not(.active) {
     color: white;
-    background: rgba(255,255,255,0.15);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 /* Tab content */
@@ -178,7 +198,7 @@ body {
     background: white;
     border-radius: 15px;
     padding: 25px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .chart-card h3 {
@@ -207,7 +227,7 @@ body {
     background: white;
     border-radius: 15px;
     padding: 25px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .leaderboard-card h3 {
@@ -284,7 +304,7 @@ body {
     border-radius: 15px;
     padding: 80px 40px;
     text-align: center;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .empty-icon {
@@ -317,4 +337,17 @@ body {
 .add-session-button:hover {
     background: #5568d3;
     transform: translateY(-2px);
+}
+
+.rank-badge {
+    background: #cbd5e0;
+    color: #4a5568;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 4px 0;
+    width: 28px;
+    text-align: center;
+    border-radius: 8px;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }

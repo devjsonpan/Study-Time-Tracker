@@ -411,8 +411,17 @@ def save_break():
 
         username = session['username']
 
-        time_in = datetime.strptime(time_in_str, '%H:%M').time()
-        time_out = datetime.strptime(time_out_str, '%H:%M').time()
+        # The frontend JS timer will send HH:MM:SS, but fallback to HH:MM if manual input
+        try:
+            time_in = datetime.strptime(time_in_str, '%H:%M:%S').time()
+        except ValueError:
+            time_in = datetime.strptime(time_in_str, '%H:%M').time()
+            
+        try:
+            time_out = datetime.strptime(time_out_str, '%H:%M:%S').time()
+        except ValueError:
+            time_out = datetime.strptime(time_out_str, '%H:%M').time()
+            
         current_date = datetime.now().date()
         
         if time_in >= time_out:
@@ -511,19 +520,19 @@ def study_summary():
         breaks = BreakEntry.query.filter_by(username=user.username).all()
 
         total_study_mins = sum(
-            (s.time_out.hour * 60 + s.time_out.minute) -
-            (s.time_in.hour * 60 + s.time_in.minute)
+            ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) -
+            (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
             for s in sessions
         )
         total_break_mins = sum(
-            (b.time_out.hour * 60 + b.time_out.minute) -
-            (b.time_in.hour * 60 + b.time_in.minute)
+            ((b.time_out.hour * 3600 + b.time_out.minute * 60 + b.time_out.second) -
+            (b.time_in.hour * 3600 + b.time_in.minute * 60 + b.time_in.second)) / 60.0
             for b in breaks
         )
 
         friend_names.append(user.fullname)
-        friend_study_hours.append(round(total_study_mins / 60, 1))
-        friend_break_hours.append(round(total_break_mins / 60, 1))
+        friend_study_hours.append(round(total_study_mins / 60, 2))
+        friend_break_hours.append(round(total_break_mins / 60, 2))
     
     # Sort all three lists together by study hours (highest first)
     sorted_friends = sorted(zip(friend_study_hours, friend_break_hours, friend_names), reverse=True)
@@ -536,11 +545,11 @@ def study_summary():
     # Course breakdown (minutes per course)
     course_totals = {}
     for s in my_sessions:
-        mins = (s.time_out.hour * 60 + s.time_out.minute) - (s.time_in.hour * 60 + s.time_in.minute)
+        mins = ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) - (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
         course_totals[s.course] = course_totals.get(s.course, 0) + mins
 
     course_labels = list(course_totals.keys())
-    course_hours = [round(m / 60, 1) for m in course_totals.values()]
+    course_hours = [round(m / 60, 2) for m in course_totals.values()]
 
     # Study hours per day (last 14 days)
     from collections import defaultdict
@@ -548,12 +557,12 @@ def study_summary():
     daily_break = defaultdict(float)
 
     for s in my_sessions:
-        mins = (s.time_out.hour * 60 + s.time_out.minute) - (s.time_in.hour * 60 + s.time_in.minute)
-        daily_study[s.date.strftime('%b %d')] += round(mins / 60, 1)
+        mins = ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) - (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
+        daily_study[s.date.strftime('%b %d')] += round(mins / 60, 2)
 
     for b in my_breaks:
-        mins = (b.time_out.hour * 60 + b.time_out.minute) - (b.time_in.hour * 60 + b.time_in.minute)
-        daily_break[b.date.strftime('%b %d')] += round(mins / 60, 1)
+        mins = ((b.time_out.hour * 3600 + b.time_out.minute * 60 + b.time_out.second) - (b.time_in.hour * 3600 + b.time_in.minute * 60 + b.time_in.second)) / 60.0
+        daily_break[b.date.strftime('%b %d')] += round(mins / 60, 2)
 
     # Merge all dates and sort
     all_dates = sorted(set(list(daily_study.keys()) + list(daily_break.keys())))

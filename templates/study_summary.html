@@ -75,7 +75,7 @@
                     {% for i in range(friend_names|length) %}
                     <div class="leaderboard-row {% if friend_names[i] == current_fullname %}is-you{% endif %}">
                         <div class="rank">
-                            {% if i == 0 %}🥇{% elif i == 1 %}🥈{% elif i == 2 %}🥉{% else %}#{{ i+1 }}{% endif %}
+                            {% if i == 0 %}🥇{% elif i == 1 %}🥈{% elif i == 2 %}🥉{% else %}<span class="rank-badge">{{ i+1 }}</span>{% endif %}
                         </div>
                         <div class="lb-name">
                             {{ friend_names[i] }}

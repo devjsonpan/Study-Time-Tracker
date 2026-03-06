@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='break_time.css') }}">
+    <script src="{{ url_for('static', filename='break_time.js') }}"></script>
 </head>
 
 <body>
@@ -31,25 +32,17 @@
                 💡 Track your breaks to ensure you're maintaining a healthy study-rest balance.
             </div>
 
-            <div class="form-group">
-                <div class="time-inputs">
-                    <div>
-                        <label for="time_in">Start Time:</label>
-                        <input type="time" id="time_in" name="time_in" required>
-                    </div>
-                    <div>
-                        <label for="time_out">End Time:</label>
-                        <input type="time" id="time_out" name="time_out" required>
-                    </div>
-                </div>
+            <div class="timer-container">
+                <div class="timer-display" id="timerDisplay">00:00:00</div>
+                <p id="timerStatus" class="timer-status">Ready to take a break?</p>
+                
+                <button type="button" id="startBtn" class="timer-btn start-btn">Start Break</button>
+                <button type="button" id="stopBtn" class="timer-btn stop-btn" style="display: none;">Stop Break</button>
             </div>
 
-            <div class="form-group">
-                <div class="confirm-group">
-                    <input type="checkbox" id="confirm" name="confirm" required>
-                    <label for="confirm" style="margin-bottom: 0;">I confirm this break time is accurate</label>
-                </div>
-            </div>
+            <!-- Hidden inputs to send to Flask -->
+            <input type="hidden" id="time_in" name="time_in">
+            <input type="hidden" id="time_out" name="time_out">
 
             <div class="form-group">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -63,7 +56,6 @@
                 {% endwith %}
             </div>
 
-            <button type="submit" class="submit-button">Log Break</button>
         </form>
     </div>
 </body>
