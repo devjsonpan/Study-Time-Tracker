@@ -254,12 +254,8 @@ def homework():
         return redirect(url_for('login'))
 
     username = session['username']
-    # Get incomplete tasks first, then completed tasks, ordered by due date
-    incomplete_tasks = HomeworkTask.query.filter_by(username=username, is_completed=False).order_by(HomeworkTask.due_date).all()
-    completed_tasks = HomeworkTask.query.filter_by(username=username, is_completed=True).order_by(HomeworkTask.due_date).all()
-    
-    # Combine them (incomplete first)
-    tasks = incomplete_tasks + completed_tasks
+    # Get all tasks ordered by due date, regardless of completion status
+    tasks = HomeworkTask.query.filter_by(username=username).order_by(HomeworkTask.due_date).all()
     
     return render_template('homework.html', tasks=tasks, now=datetime.now())
 
@@ -328,10 +324,7 @@ def events():
     
     username = session['username']
     
-    incomplete_events = Event.query.filter_by(username=username, is_completed=False).order_by(Event.start_datetime).all()
-    completed_events = Event.query.filter_by(username=username, is_completed=True).order_by(Event.start_datetime).all()
-    
-    all_events = incomplete_events + completed_events
+    all_events = Event.query.filter_by(username=username).order_by(Event.start_datetime).all()
     
     return render_template('events.html', events=all_events, now=datetime.now())
 
