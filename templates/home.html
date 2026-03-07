@@ -21,27 +21,79 @@
         <a href="{{url_for('break_time')}}" class="button">Break Time</a>
         <a href="{{url_for('study_summary')}}" class="button">Study Summary</a>
     </div>
-    
+
     <div class="main-content">
         <a href="{{url_for('login')}}" class="logout-button">Logout</a>
 
-        <div class="welcome-card">
-            <h1>Study Tracker</h1>
-            <h2>Welcome, {{ fullname }}!</h2>
+        <div class="content-container">
+            <div class="welcome-card">
+                <div class="welcome-text">
+                    <h1>Welcome, {{ fullname }}!</h1>
+                    <p>Here's a quick overview of everything your Study Tracker can do.</p>
+                </div>
+            </div>
+
+        <div class="guide-grid">
+            <div class="guide-card">
+                <div class="guide-icon">🏠</div>
+                <div class="guide-body">
+                    <h3>Home</h3>
+                    <p>You're here! Come back anytime you want to get a refresher on what each page has to offer.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">📖</div>
+                <div class="guide-body">
+                    <h3>Study Session</h3>
+                    <p>Record what you studied, when, and for how long. Add a topic and personal notes to keep your sessions organized and meaningful.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">📝</div>
+                <div class="guide-body">
+                    <h3>Notes</h3>
+                    <p>Every note you write during a study session is saved here. Browse, edit, or delete them whenever you need to revisit what you've covered.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">✅</div>
+                <div class="guide-body">
+                    <h3>Homework Tasks</h3>
+                    <p>Stay on top of your assignments by logging tasks with due dates and descriptions. Completed tasks can be marked off, and overdue ones are flagged automatically.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">📌</div>
+                <div class="guide-body">
+                    <h3>Events</h3>
+                    <p>Plan ahead by adding events with a start time, end time, location, and description. Perfect for study groups, exams, or any scheduled commitment.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">📆</div>
+                <div class="guide-body">
+                    <h3>Calendar</h3>
+                    <p>See all your homework deadlines and events laid out in a monthly calendar. Click on any item for a detailed summary.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">🎮</div>
+                <div class="guide-body">
+                    <h3>Break Time</h3>
+                    <p>Track your breaks alongside your study sessions to get a clearer picture of how you're spending your time and staying balanced.</p>
+                </div>
+            </div>
+            <div class="guide-card">
+                <div class="guide-icon">📊</div>
+                <div class="guide-body">
+                    <h3>Study Summary</h3>
+                    <p>Dive into your study stats with charts broken down by course and day. You can also see how your total hours compare with other users.</p>
+                </div>
+            </div>
         </div>
-        
-        <div class="instructions">
-            <h2>How to Use Your Study Tracker:</h2>
-            <ul>
-                <li>🏠<strong> Home:</strong> Returns you to this home page where you can review instructions.</li>
-                <li>📖<strong> Study Session:</strong> Log your study sessions with subject, topic, time, and optional notes.</li>
-                <li>✅<strong> Homework Tasks:</strong> Add homework tasks with due dates and mark them as complete when done.</li>
-                <li>📝<strong> Notes:</strong> View all the notes you've written during your study sessions in one organized place.</li>
-                <li>🗓️<strong> Events:</strong> View all the events you've added to your calendar in one organized place.</li>
-                <li>☕<strong> Break Time:</strong> Log your breaks to ensure you're balancing study time with rest.</li>
-                <li>📊<strong> Study Summary:</strong> View detailed statistics of your study sessions and see how you compare with your friends!</li>
-            </ul>
-            <h4>To logout of your account, click on the Logout Button at the top right of the page</h4>
+
+        <div class="instruction-box">
+            <p>💡 To logout of your account, click on the <b>Logout</b> button at the top right of the page!</p>
         </div>
     </div>
 </body>
