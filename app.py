@@ -45,6 +45,7 @@ class HomeworkTask(db.Model):
     username = db.Column(db.String, nullable=False)
     course = db.Column(db.String, nullable=False)
     task_name = db.Column(db.String, nullable=False)
+    description = db.Column(db.String, nullable=True)
     due_date = db.Column(db.DateTime, nullable=False)
     is_completed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -266,6 +267,7 @@ def save_homework():
     if request.method == 'POST':
         course = request.form.get('course')
         task_name = request.form.get('task_name')
+        description = request.form.get('description') or None
         due_date_str = request.form.get('due_date')
         
         username = session['username']
@@ -277,6 +279,7 @@ def save_homework():
             username=username,
             course=course,
             task_name=task_name,
+            description=description,
             due_date=due_date
         )
         
@@ -426,6 +429,7 @@ def calendar_view():
             'extendedProps': {
                 'type': 'task',
                 'completed': task.is_completed,
+                'description': task.description or 'N/A',
                 'deadline': task.due_date.strftime('%B %d, %Y at %I:%M %p')
             }
         })
@@ -447,7 +451,9 @@ def calendar_view():
                 'type': 'event',
                 'completed': event.is_completed,
                 'real_start': event.start_datetime.strftime('%B %d, %Y at %I:%M %p'),
-                'real_end': event.end_datetime.strftime('%B %d, %Y at %I:%M %p')
+                'real_end': event.end_datetime.strftime('%B %d, %Y at %I:%M %p'),
+                'location': event.location or 'N/A',
+                'description': event.description or 'N/A'
             }
         })
 

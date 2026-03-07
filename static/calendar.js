@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function () {
         eventClick: function (info) {
             let title = info.event.title;
             let type = info.event.extendedProps.type === 'task' ? 'Homework Task' : 'Event';
+            let description = info.event.extendedProps.description;
 
             if (info.event.extendedProps.type === 'task') {
                 let status;
@@ -50,12 +51,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     status = "Pending 🕒";
                 }
                 let deadline = info.event.extendedProps.deadline;
-                alert(`--- ${type} ---\n\nTitle: ${title}\nDeadline: ${deadline}\nStatus: ${status}\n\nNote: To modify this item, please visit the ${type}s page.`);
+                alert(`--- ${type} ---\n\nTitle: ${title}\nDeadline: ${deadline}\nStatus: ${status}\nDescription: ${description}\n\nNote: To modify this item, please visit the ${type}s page.`);
             } else {
                 let status = info.event.extendedProps.completed ? "Completed ✅" : "Pending 🕒";
                 let start = info.event.extendedProps.real_start;
                 let end = info.event.extendedProps.real_end;
-                alert(`--- ${type} ---\n\nTitle: ${title}\nStart: ${start}\nEnd: ${end}\nStatus: ${status}\n\nNote: To modify this item, please visit the ${type}s page.`);
+                let location = info.event.extendedProps.location;
+                alert(`--- ${type} ---\n\nTitle: ${title}\nStart: ${start}\nEnd: ${end}\nStatus: ${status}\nLocation: ${location}\nDescription: ${description}\n\nNote: To modify this item, please visit the ${type}s page.`);
             }
             info.jsEvent.preventDefault();
         }

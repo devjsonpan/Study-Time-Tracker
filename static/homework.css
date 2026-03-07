@@ -128,6 +128,37 @@ label {
     font-weight: 600;
 }
 
+.optional-label {
+    font-weight: 400;
+    color: #718096;
+    font-size: 13px;
+}
+
+textarea {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    resize: vertical;
+    transition: border-color 0.3s;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.task-description {
+    color: #718096;
+    font-size: 13px;
+    margin-top: 4px;
+    padding-top: 5px;
+    max-width: 600px;
+}
+
 input,
 select {
     width: 100%;

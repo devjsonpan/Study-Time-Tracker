@@ -40,6 +40,11 @@
             </div>
 
             <div class="form-group">
+                <label for="description">Description: <span class="optional-label">(optional)</span></label>
+                <textarea id="description" name="description" placeholder="Add any extra details..." rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
                 <label for="due_date">Deadline:</label>
                 <input type="datetime-local" id="due_date" name="due_date" required>
             </div>
@@ -61,6 +66,9 @@
                                 (OVERDUE!)
                             {% endif %}
                         </div>
+                        {% if task.description %}
+                            <div class="task-description">{{ task.description }}</div>
+                        {% endif %}
                     </div>
                     <div class="task-actions">
                         {% if task.is_completed %}
