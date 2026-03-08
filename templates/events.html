@@ -58,11 +58,11 @@
             <div class="form-group">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                    <div class="error-message">
-                        {% for category, message in messages %}
-                            <p>{{ message }}</p>
-                        {% endfor %}
-                    </div>
+                    {% for category, message in messages %}
+                        {% if category == 'error' %}
+                            <div class="error-message"><p>{{ message }}</p></div>
+                        {% endif %}
+                    {% endfor %}
                 {% endif %}
                 {% endwith %}
             </div>
@@ -72,6 +72,17 @@
 
         <div class="events-list">
             <h2>📅 Your Events</h2>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        {% if category == 'success' %}
+                            <div class="flash-success" style="background-color: #c6f6d5; color: #22543d; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; margin-top: 15px; text-align: center; font-weight: 600;">
+                                {{ message }}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
             {% if events %}
                 {% for event in events %}
                 <div class="event-item {% if event.is_completed %}completed{% endif %}">
@@ -97,6 +108,7 @@
                         {% endif %}
                     </div>
                     <div class="event-actions">
+                        <button class="action-button edit-button" onclick="editEvent({{ event.id }}, '{{ event.event_name }}', '{{ event.start_datetime.strftime('%Y-%m-%dT%H:%M') }}', '{{ event.end_datetime.strftime('%Y-%m-%dT%H:%M') }}', `{{ event.location or '' }}`, `{{ event.description or '' }}`)">Edit</button>
                         {% if event.is_completed %}
                             <a href="{{ url_for('complete_event', event_id=event.id) }}" class="action-button uncomplete-button">Undo</a>
                         {% else %}
@@ -113,5 +125,15 @@
             {% endif %}
         </div>
     </div>
+    <script>
+        setTimeout(function() {
+            const flashes = document.querySelectorAll('.flash-success');
+            flashes.forEach(function(el) {
+                el.style.transition = 'opacity 0.5s ease';
+                el.style.opacity = '0';
+                setTimeout(function() { el.remove(); }, 500);
+            });
+        }, 3000);
+    </script>
 </body>
 </html>

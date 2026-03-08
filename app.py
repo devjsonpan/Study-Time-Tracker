@@ -320,6 +320,24 @@ def delete_task(task_id):
     
     return redirect(url_for('homework'))
 
+# Route for editing a homework task
+@app.route('/edit_task/<int:task_id>', methods=['POST'])
+def edit_task(task_id):
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+    
+    task = HomeworkTask.query.get_or_404(task_id)
+    
+    if task.username == session['username']:
+        task.course = request.form.get('course')
+        task.task_name = request.form.get('task_name')
+        task.due_date = datetime.strptime(request.form.get('due_date'), '%Y-%m-%dT%H:%M')
+        task.description = request.form.get('description')
+        db.session.commit()
+        flash('Task updated successfully!', 'success')
+    
+    return redirect(url_for('homework'))
+ 
 # Route for the events page
 @app.route('/events')
 def events():
@@ -395,6 +413,32 @@ def delete_event(event_id):
     if event.username == session['username']:
         db.session.delete(event)
         db.session.commit()
+    
+    return redirect(url_for('events'))
+
+# Route for editing an event
+@app.route('/edit_event/<int:event_id>', methods=['POST'])
+def edit_event(event_id):
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+    
+    event = Event.query.get_or_404(event_id)
+    
+    if event.username == session['username']:
+        start_datetime = datetime.strptime(request.form.get('start_datetime'), '%Y-%m-%dT%H:%M')
+        end_datetime = datetime.strptime(request.form.get('end_datetime'), '%Y-%m-%dT%H:%M')
+        
+        if start_datetime >= end_datetime:
+            flash('The start time must be before the end time.', 'error')
+            return redirect(url_for('events'))
+        
+        event.event_name = request.form.get('event_name')
+        event.start_datetime = start_datetime
+        event.end_datetime = end_datetime
+        event.location = request.form.get('location')
+        event.description = request.form.get('description')
+        db.session.commit()
+        flash('Event updated successfully!', 'success')
     
     return redirect(url_for('events'))
 

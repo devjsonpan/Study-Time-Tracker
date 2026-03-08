@@ -54,6 +54,15 @@
 
         <div class="homework-list">
             <h2>📋 Your Homework Tasks</h2>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-success" style="background-color: #c6f6d5; color: #22543d; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; margin-top: 15px; text-align: center; font-weight: 600;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
             {% if tasks %}
                 {% for task in tasks %}
                 <div class="task-item {% if task.is_completed %}completed{% endif %}">
@@ -71,6 +80,7 @@
                         {% endif %}
                     </div>
                     <div class="task-actions">
+                        <button class="action-button edit-button" onclick="editTask({{ task.id }}, '{{ task.course }}', '{{ task.task_name }}', '{{ task.due_date.strftime('%Y-%m-%dT%H:%M') }}', `{{ task.description or '' }}`)">Edit</button>
                         {% if task.is_completed %}
                             <a href="{{ url_for('complete_task', task_id=task.id) }}" class="action-button uncomplete-button">Undo</a>
                         {% else %}
@@ -87,5 +97,15 @@
             {% endif %}
         </div>
     </div>
+    <script>
+        setTimeout(function() {
+            const flashes = document.querySelectorAll('.flash-success');
+            flashes.forEach(function(el) {
+                el.style.transition = 'opacity 0.5s ease';
+                el.style.opacity = '0';
+                setTimeout(function() { el.remove(); }, 500);
+            });
+        }, 3000);
+    </script>
 </body>
 </html>

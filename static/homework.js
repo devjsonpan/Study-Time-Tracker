@@ -50,3 +50,65 @@ document.addEventListener("DOMContentLoaded", function () {
 
     attachListeners();
 });
+
+function editTask(taskId, course, taskName, dueDate, description) {
+    const modalHTML = `
+        <div id="edit-modal" class="modal-overlay">
+            <div class="modal-content">
+                <h2>✏️ Edit Task</h2>
+                <form id="edit-form" onsubmit="saveTaskEdit(event, ${taskId})">
+                    <div class="form-group">
+                        <label>Course:</label>
+                        <input type="text" id="edit-course" value="${course}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Task:</label>
+                        <input type="text" id="edit-task-name" value="${taskName}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Deadline:</label>
+                        <input type="datetime-local" id="edit-due-date" value="${dueDate}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description: <span style="font-weight:400; color:#718096; font-size:13px;">(optional)</span></label>
+                        <textarea id="edit-description" rows="3">${description}</textarea>
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="submit" class="save-btn">Save Changes</button>
+                        <button type="button" class="cancel-btn" onclick="closeEditModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function saveTaskEdit(event, taskId) {
+    event.preventDefault();
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/edit_task/' + taskId;
+
+    form.appendChild(createHiddenInput('course', document.getElementById('edit-course').value));
+    form.appendChild(createHiddenInput('task_name', document.getElementById('edit-task-name').value));
+    form.appendChild(createHiddenInput('due_date', document.getElementById('edit-due-date').value));
+    form.appendChild(createHiddenInput('description', document.getElementById('edit-description').value));
+
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function createHiddenInput(name, value) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    return input;
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('edit-modal');
+    if (modal) modal.remove();
+}
