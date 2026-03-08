@@ -1,14 +1,18 @@
 document.addEventListener("DOMContentLoaded", function () {
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
+    const saveBtn = document.getElementById('save-btn');
     const timerDisplay = document.getElementById('timerDisplay');
     const timerStatus = document.getElementById('timerStatus');
-    const form = document.querySelector('.break-form');
+    const notesGroup = document.getElementById('notes-group');
+    const form = document.getElementById('session-form');
     const timeInInput = document.getElementById('time_in');
     const timeOutInput = document.getElementById('time_out');
+    const courseInput = document.getElementById('course');
+    const topicInput = document.getElementById('topic');
 
     const username = document.getElementById('current-username').value;
-    const storageKey = 'activeBreakStart_' + username;
+    const storageKey = 'activeStudyStart_' + username;
 
     let startTime = null;
     let timerInterval = null;
@@ -30,11 +34,17 @@ document.addEventListener("DOMContentLoaded", function () {
             seconds.toString().padStart(2, '0');
     }
 
+    // Restore active session if exists
     let savedSession = localStorage.getItem(storageKey);
     if (savedSession) {
-        startTime = new Date(parseInt(savedSession));
+        const saved = JSON.parse(savedSession);
+        startTime = new Date(saved.startTime);
+        courseInput.value = saved.course;
+        topicInput.value = saved.topic;
+        courseInput.disabled = true;
+        topicInput.disabled = true;
         timerDisplay.classList.add('active');
-        timerStatus.textContent = "Break in progress...";
+        timerStatus.textContent = "Session in progress...";
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
         timerInterval = setInterval(() => updateDisplay(new Date() - startTime), 1000);
@@ -42,15 +52,29 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     startBtn.addEventListener('click', function () {
-        const studyKey = 'activeStudyStart_' + username;
-        if (localStorage.getItem(studyKey)) {
-            alert('You have an active study session running. Please stop your study session before starting a break.');
+        const breakKey = 'activeBreakStart_' + username;
+        if (localStorage.getItem(breakKey)) {
+            alert('You have an active break running. Please stop your break before starting a study session.');
             return;
         }
+        const course = courseInput.value.trim();
+        if (!course) {
+            alert('Please enter a course before starting.');
+            return;
+        }
+
         startTime = new Date();
-        localStorage.setItem(storageKey, startTime.getTime());
+        const sessionData = {
+            startTime: startTime.getTime(),
+            course: courseInput.value,
+            topic: topicInput.value
+        };
+        localStorage.setItem(storageKey, JSON.stringify(sessionData));
+
+        courseInput.disabled = true;
+        topicInput.disabled = true;
         timerDisplay.classList.add('active');
-        timerStatus.textContent = "Break in progress...";
+        timerStatus.textContent = "Session in progress...";
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
         timerInterval = setInterval(() => updateDisplay(new Date() - startTime), 1000);
@@ -62,12 +86,14 @@ document.addEventListener("DOMContentLoaded", function () {
         clearInterval(timerInterval);
         const endTime = new Date();
         timerDisplay.classList.remove('active');
-        localStorage.removeItem(storageKey);
 
         let diffMs = endTime - startTime;
         if (diffMs < 60000) {
-            alert('Break was less than a minute, so no time was logged.');
-            timerStatus.textContent = "Ready to take a break?";
+            alert('Session was less than a minute, so no time was logged.');
+            localStorage.removeItem(storageKey);
+            courseInput.disabled = false;
+            topicInput.disabled = false;
+            timerStatus.textContent = "Ready to study?";
             startBtn.style.display = 'inline-block';
             stopBtn.style.display = 'none';
             timerDisplay.textContent = "00:00:00";
@@ -75,10 +101,19 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        timerStatus.textContent = "Saving break...";
-        stopBtn.disabled = true;
         timeInInput.value = formatTimeString(startTime);
         timeOutInput.value = formatTimeString(endTime);
-        form.submit();
+        localStorage.removeItem(storageKey);
+
+        timerStatus.textContent = "Session stopped. Add notes and save!";
+        stopBtn.style.display = 'none';
+        notesGroup.style.display = 'block';
+        saveBtn.style.display = 'block';
+    });
+
+    form.addEventListener('submit', function () {
+        // Re-enable disabled fields so they get submitted
+        courseInput.disabled = false;
+        topicInput.disabled = false;
     });
 });

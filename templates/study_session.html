@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='study_session.css') }}">
+    <script src="{{ url_for('static', filename='study_session.js') }}"></script>
 </head>
 
 <body>
@@ -25,9 +26,13 @@
     <div class="main-content">
         <a href="{{url_for('login')}}" class="logout-button">Logout</a>
 
-        <form class="session-form" method="POST" action="{{ url_for('save_study_session') }}">
-            <h1>📖 Log Study Session</h1>
-            
+        <form class="session-form" method="POST" action="{{ url_for('save_study_session') }}" id="session-form">
+            <h1>📖 Study Session</h1>
+
+            <div class="info-box">
+                💡 Fill in your course and topic, then start the timer when you begin studying. Add notes when you're done.
+            </div>
+
             <div class="form-group">
                 <label for="course">Course:</label>
                 <input type="text" id="course" name="course" placeholder="Example: CS 135" required>
@@ -38,30 +43,23 @@
                 <input type="text" id="topic" name="topic" placeholder="Example: Recursion">
             </div>
 
-            <div class="form-group">
-                <div class="time-inputs">
-                    <div>
-                        <label for="time_in">Start Time:</label>
-                        <input type="time" id="time_in" name="time_in" required>
-                    </div>
-                    <div>
-                        <label for="time_out">End Time:</label>
-                        <input type="time" id="time_out" name="time_out" required>
-                    </div>
-                </div>
+            <div class="timer-container">
+                <div class="timer-display" id="timerDisplay">00:00:00</div>
+                <p id="timerStatus" class="timer-status">Ready to study?</p>
+                <button type="button" id="startBtn" class="timer-btn start-btn">Start Session</button>
+                <button type="button" id="stopBtn" class="timer-btn stop-btn" style="display: none;">Stop Session</button>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="notes-group" style="display: none;">
                 <label for="notes">Notes: <span class="optional-label">(optional)</span></label>
-                <textarea id="notes" name="notes" placeholder="What did you learn? Any challenges?"></textarea>
+                <textarea id="notes" name="notes" placeholder="What did you cover this session?" rows="4"></textarea>
             </div>
 
-            <div class="form-group">
-                <div class="confirm-group">
-                    <input type="checkbox" id="confirm" name="confirm" required>
-                    <label for="confirm" style="margin-bottom: 0;">I confirm this study session is accurate</label>
-                </div>
-            </div>
+            <button type="submit" class="submit-button" id="save-btn" style="display: none;">Save Session</button>
+
+            <input type="hidden" id="time_in" name="time_in">
+            <input type="hidden" id="time_out" name="time_out">
+            <input type="hidden" id="current-username" value="{{ session['username'] }}">
 
             <div class="form-group">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -74,9 +72,33 @@
                 {% endif %}
                 {% endwith %}
             </div>
-
-            <button type="submit" class="submit-button">Submit Session</button>
         </form>
     </div>
+    <script>
+        document.querySelector('.logout-button').addEventListener('click', function(e) {
+            const username = "{{ session['username'] }}";
+            const studyKey = 'activeStudyStart_' + username;
+            const breakKey = 'activeBreakStart_' + username;
+            if (localStorage.getItem(studyKey)) {
+                e.preventDefault();
+                const confirmed = window.confirm('You have a study session currently running. Are you sure you want to logout? Your session will not be saved.');
+                if (confirmed) {
+                    localStorage.removeItem(studyKey);
+                    window.location.href = this.href;
+                } else {
+                    window.location.href = '/session';
+                }
+            } else if (localStorage.getItem(breakKey)) {
+                e.preventDefault();
+                const confirmed = window.confirm('You have a break session currently running. Are you sure you want to logout? Your break will not be saved.');
+                if (confirmed) {
+                    localStorage.removeItem(breakKey);
+                    window.location.href = this.href;
+                } else {
+                    window.location.href = '/break';
+                }
+            }
+        });
+    </script>
 </body>
 </html>

@@ -224,13 +224,17 @@ def save_study_session():
 
         username = session['username']
 
-        time_in = datetime.strptime(time_in_str, '%H:%M').time()
-        time_out = datetime.strptime(time_out_str, '%H:%M').time()
+        try:
+            time_in = datetime.strptime(time_in_str, '%H:%M:%S').time()
+        except ValueError:
+            time_in = datetime.strptime(time_in_str, '%H:%M').time()
+
+        try:
+            time_out = datetime.strptime(time_out_str, '%H:%M:%S').time()
+        except ValueError:
+            time_out = datetime.strptime(time_out_str, '%H:%M').time()
+
         current_date = datetime.now().date()
-        
-        if time_in >= time_out:
-            flash('The start time must be before the end time.', 'error')
-            return redirect(url_for('study_session'))
 
         new_entry = StudySession(
             username=username, 
@@ -532,10 +536,6 @@ def save_break():
             time_out = datetime.strptime(time_out_str, '%H:%M').time()
             
         current_date = datetime.now().date()
-        
-        if time_in >= time_out:
-            flash('The start time must be before the end time.', 'error')
-            return redirect(url_for('break_time'))
 
         new_entry = BreakEntry(username=username, time_in=time_in, time_out=time_out, date=current_date)
 
@@ -554,7 +554,7 @@ def notes():
     
     username = session['username']
     # Get all study sessions with notes for this user, ordered by date (newest first)
-    sessions_with_notes = StudySession.query.filter_by(username=username).filter(StudySession.notes != None).filter(StudySession.notes != '').order_by(StudySession.date.desc()).all()
+    sessions_with_notes = StudySession.query.filter_by(username=username).order_by(StudySession.date.desc()).all()
     
     return render_template('notes.html', sessions=sessions_with_notes)
 
