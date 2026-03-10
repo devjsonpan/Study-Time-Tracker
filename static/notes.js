@@ -31,7 +31,7 @@ function showEditModal(noteId, course, topic, notes) {
                     </div>
                     <div class="form-group">
                         <label>Notes:</label>
-                        <textarea id="edit-notes" required>${notes}</textarea>
+                        <textarea id="edit-notes">${notes}</textarea>
                     </div>
                     <div class="modal-buttons">
                         <button type="submit" class="save-btn">Save Changes</button>

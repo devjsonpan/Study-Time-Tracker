@@ -1,9 +1,16 @@
 # Import the necessary modules from the libraries
 from flask import Flask, render_template, request, redirect, url_for, session, flash, get_flashed_messages
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_bcrypt import Bcrypt
 from datetime import datetime
 from datetime import timedelta
 from flask_session import Session
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -12,12 +19,15 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///study_tracker.db'
 
 # Configure Flask-Session
-app.config['SECRET_KEY'] = 'random_secret_key'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
 # Create an instance of SQLAlchemy to interact with the database
 db = SQLAlchemy(app)
+
+bcrypt = Bcrypt(app)
+migrate = Migrate(app, db)
 
 # Define the User model for the database
 class User(db.Model):
@@ -38,6 +48,7 @@ class StudySession(db.Model):
     time_out = db.Column(db.Time, nullable=False)
     date = db.Column(db.Date, nullable=False)
     notes = db.Column(db.String, nullable=True)
+    hidden_from_notes = db.Column(db.Boolean, default=False, nullable=False)
 
 # Define the HomeworkTask model for the database
 class HomeworkTask(db.Model):
@@ -88,9 +99,9 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        user = User.query.filter_by(username=username, password=password).first()
+        user = User.query.filter_by(username=username).first()
 
-        if user:
+        if user and bcrypt.check_password_hash(user.password, password):
             session['username'] = user.username
             return redirect(url_for('home', fullname=user.fullname))
         else:
@@ -142,7 +153,7 @@ def reset_password():
                              username=username)
     
     # Update password
-    user.password = new_password
+    user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
     db.session.commit()
     
     # Redirect to login page with success message
@@ -178,10 +189,11 @@ def register():
         if existing_user:
             error = 'Username is already taken. Please choose a different username.'
         else:
+            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
             new_user = User(
                 username=username, 
                 fullname=fullname, 
-                password=password, 
+                password=hashed_password, 
                 security_question=security_question,
                 security_answer=security_answer.lower().strip()
             )
@@ -553,8 +565,10 @@ def notes():
         return redirect(url_for('login'))
     
     username = session['username']
-    # Get all study sessions with notes for this user, ordered by date (newest first)
-    sessions_with_notes = StudySession.query.filter_by(username=username).order_by(StudySession.date.desc()).all()
+    sessions_with_notes = StudySession.query.filter_by(
+        username=username,
+        hidden_from_notes=False
+    ).order_by(StudySession.date.desc()).all()
     
     return render_template('notes.html', sessions=sessions_with_notes)
 
@@ -570,7 +584,7 @@ def delete_note(session_id):
     
     # Make sure user can only delete their own notes
     if study_session.username == username:
-        # Clear the notes field (we're not deleting the session, just the notes)
+        study_session.hidden_from_notes = True
         study_session.notes = None
         db.session.commit()
         flash('Note deleted successfully!', 'success')
@@ -697,7 +711,4 @@ def study_summary():
 
 # Main block to run the application
 if __name__ == '__main__':
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-        app.run(debug=True)
+    app.run(debug=True)
