@@ -35,12 +35,14 @@
 
             <div class="form-group">
                 <label for="course">Course:</label>
-                <input type="text" id="course" name="course" placeholder="Example: CS 135" required>
+                <input type="text" id="course" name="course" placeholder="Example: CS 135" required
+                onkeydown="if(event.key === 'Enter') event.preventDefault();">
             </div>
 
             <div class="form-group">
                 <label for="topic">Topic: <span class="optional-label">(optional)</span></label>
-                <input type="text" id="topic" name="topic" placeholder="Example: Recursion">
+                <input type="text" id="topic" name="topic" placeholder="Example: Recursion"
+                onkeydown="if(event.key === 'Enter') event.preventDefault();">
             </div>
 
             <div class="timer-container">

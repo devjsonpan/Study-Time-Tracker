@@ -616,7 +616,6 @@ def edit_note(session_id):
     
     return redirect(url_for('notes'))
 
-# Route for the study summary page
 @app.route('/summary')
 def study_summary():
     current_date = datetime.now()
@@ -627,39 +626,75 @@ def study_summary():
 
     all_users = User.query.all()
 
-    # Put current user first
     current_user = next((u for u in all_users if u.username == current_username), None)
     if current_user:
         all_users.remove(current_user)
         all_users.insert(0, current_user)
 
+    today = datetime.now().date()
+    week_start = today - timedelta(days=today.weekday())
+
     # Friends comparison data
     friend_names = []
     friend_study_hours = []
     friend_break_hours = []
+    friend_today_study = []
+    friend_today_break = []
 
     for user in all_users:
-        sessions = StudySession.query.filter_by(username=user.username).all()
-        breaks = BreakEntry.query.filter_by(username=user.username).all()
+        # Weekly sessions for leaderboard
+        user_sessions = StudySession.query.filter_by(username=user.username).filter(
+            StudySession.date >= week_start
+        ).all()
+        user_breaks = BreakEntry.query.filter_by(username=user.username).filter(
+            BreakEntry.date >= week_start
+        ).all()
 
         total_study_mins = sum(
             ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) -
             (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
-            for s in sessions
+            for s in user_sessions
         )
         total_break_mins = sum(
             ((b.time_out.hour * 3600 + b.time_out.minute * 60 + b.time_out.second) -
             (b.time_in.hour * 3600 + b.time_in.minute * 60 + b.time_in.second)) / 60.0
-            for b in breaks
+            for b in user_breaks
+        )
+
+        # Today's sessions for today graphs
+        user_today_sessions = StudySession.query.filter_by(username=user.username).filter(
+            StudySession.date == today
+        ).all()
+        user_today_breaks = BreakEntry.query.filter_by(username=user.username).filter(
+            BreakEntry.date == today
+        ).all()
+
+        today_study_mins = sum(
+            ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) -
+            (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
+            for s in user_today_sessions
+        )
+        today_break_mins = sum(
+            ((b.time_out.hour * 3600 + b.time_out.minute * 60 + b.time_out.second) -
+            (b.time_in.hour * 3600 + b.time_in.minute * 60 + b.time_in.second)) / 60.0
+            for b in user_today_breaks
         )
 
         friend_names.append(user.fullname)
         friend_study_hours.append(round(total_study_mins / 60, 2))
         friend_break_hours.append(round(total_break_mins / 60, 2))
-    
-    # Sort all three lists together by study hours (highest first)
-    sorted_friends = sorted(zip(friend_study_hours, friend_break_hours, friend_names), reverse=True)
-    friend_study_hours, friend_break_hours, friend_names = map(list, zip(*sorted_friends)) if sorted_friends else ([], [], [])
+        friend_today_study.append(round(today_study_mins / 60, 2))
+        friend_today_break.append(round(today_break_mins / 60, 2))
+
+    # Sort all lists together by weekly study hours
+    sorted_friends = sorted(
+        zip(friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break),
+        reverse=True
+    )
+    if sorted_friends:
+        friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break = map(list, zip(*sorted_friends))
+    else:
+        friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break = [], [], [], [], []
 
     # Self analytics data
     my_sessions = StudySession.query.filter_by(username=current_username).order_by(StudySession.date).all()
@@ -687,26 +722,62 @@ def study_summary():
         mins = ((b.time_out.hour * 3600 + b.time_out.minute * 60 + b.time_out.second) - (b.time_in.hour * 3600 + b.time_in.minute * 60 + b.time_in.second)) / 60.0
         daily_break[b.date.strftime('%b %d')] += round(mins / 60, 2)
 
-    # Merge all dates and sort
     all_dates = sorted(set(list(daily_study.keys()) + list(daily_break.keys())))
-    daily_labels = all_dates[-14:]  # last 14 days max
+    daily_labels = all_dates[-14:]
     daily_study_values = [daily_study.get(d, 0) for d in daily_labels]
     daily_break_values = [daily_break.get(d, 0) for d in daily_labels]
+
+    # Today's data for My Stats tab
+    today_sessions = StudySession.query.filter_by(username=current_username).filter(
+        StudySession.date == today
+    ).all()
+    today_breaks = BreakEntry.query.filter_by(username=current_username).filter(
+        BreakEntry.date == today
+    ).all()
+
+    today_course_totals = {}
+    for s in today_sessions:
+        mins = ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) - (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
+        today_course_totals[s.course] = today_course_totals.get(s.course, 0) + mins
+
+    today_course_labels = list(today_course_totals.keys())
+    today_course_hours = [round(m / 60, 2) for m in today_course_totals.values()]
+
+    today_study_mins = sum(
+        ((s.time_out.hour * 3600 + s.time_out.minute * 60 + s.time_out.second) -
+         (s.time_in.hour * 3600 + s.time_in.minute * 60 + s.time_in.second)) / 60.0
+        for s in today_sessions
+    )
+    today_break_mins = sum(
+        ((b.time_out.hour * 3600 + b.time_out.minute * 60 + b.time_out.second) -
+         (b.time_in.hour * 3600 + b.time_in.minute * 60 + b.time_in.second)) / 60.0
+        for b in today_breaks
+    )
+    today_study_hours = round(today_study_mins / 60, 2)
+    today_break_hours = round(today_break_mins / 60, 2)
 
     return render_template('study_summary.html',
         current_date=current_date,
         current_username=current_username,
         current_fullname=current_user.fullname if current_user else '',
+        week_start=week_start,
         # Friends chart
         friend_names=friend_names,
         friend_study_hours=friend_study_hours,
         friend_break_hours=friend_break_hours,
+        friend_today_study=friend_today_study,
+        friend_today_break=friend_today_break,
         # Self chart
         course_labels=course_labels,
         course_hours=course_hours,
         daily_labels=daily_labels,
         daily_study_values=daily_study_values,
         daily_break_values=daily_break_values,
+        # Today's chart
+        today_course_labels=today_course_labels,
+        today_course_hours=today_course_hours,
+        today_study_hours=today_study_hours,
+        today_break_hours=today_break_hours,
     )
 
 # Main block to run the application

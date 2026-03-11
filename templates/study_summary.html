@@ -10,11 +10,17 @@
         const friendNames      = {{ friend_names | tojson }};
         const friendStudy      = {{ friend_study_hours | tojson }};
         const friendBreak      = {{ friend_break_hours | tojson }};
+        const friendTodayStudy  = {{ friend_today_study | tojson }};
+        const friendTodayBreak  = {{ friend_today_break | tojson }};
         const courseLabels     = {{ course_labels | tojson }};
         const courseHours      = {{ course_hours | tojson }};
         const dailyLabels      = {{ daily_labels | tojson }};
         const dailyStudy       = {{ daily_study_values | tojson }};
         const dailyBreak       = {{ daily_break_values | tojson }};
+        const todayCourseLabels = {{ today_course_labels | tojson }};
+        const todayCourseHours = {{ today_course_hours | tojson }};
+        const todayStudyHours = {{ today_study_hours | tojson }};
+        const todayBreakHours = {{ today_break_hours | tojson }};
     </script>
     <script src="{{ url_for('static', filename='study_summary.js') }}"></script>
 </head>
@@ -52,26 +58,18 @@
 
         <!-- Friends Tab -->
         <div id="tab-friends" class="tab-content active">
-            <div class="charts-grid">
+            <div class="charts-grid" style="grid-template-columns: 1fr;">
                 <div class="chart-card">
-                    <h3>📖 Total Hours Studied</h3>
-                    <p class="chart-subtitle">All time, across all sessions</p>
+                    <h3>📊 Today's Activity</h3>
+                    <p class="chart-subtitle">Study vs break hours logged today</p>
                     <div class="chart-wrapper">
-                        <canvas id="studyChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>🎮 Total Break Time</h3>
-                    <p class="chart-subtitle">All time, across all breaks</p>
-                    <div class="chart-wrapper">
-                        <canvas id="breakChart"></canvas>
+                        <canvas id="friendsDailyChart"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- Leaderboard -->
             <div class="leaderboard-card">
-                <h3>🏆 Leaderboard</h3>
+                <h3>🏆 Weekly Leaderboard</h3>
                 <div class="leaderboard">
                     {% for i in range(friend_names|length) %}
                     <div class="leaderboard-row {% if friend_names[i] == current_fullname %}is-you{% endif %}">
@@ -95,17 +93,33 @@
             {% if course_labels %}
             <div class="charts-grid">
                 <div class="chart-card">
-                    <h3>📚 Time by Course</h3>
+                    <h3>📚 Course Breakdown (All Time)</h3>
                     <p class="chart-subtitle">Total hours per subject</p>
                     <div class="chart-wrapper chart-wrapper--donut">
                         <canvas id="courseChart"></canvas>
                     </div>
                 </div>
                 <div class="chart-card">
-                    <h3>📅 Daily Activity</h3>
-                    <p class="chart-subtitle">Study vs break hours per day</p>
+                    <h3>📚 Course Breakdown (Today)</h3>
+                    <p class="chart-subtitle">Hours per subject today</p>
+                    <div class="chart-wrapper chart-wrapper--donut">
+                        <canvas id="todayCourseChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>📅 Today's Activity</h3>
+                    <p class="chart-subtitle">Study vs break hours today</p>
                     <div class="chart-wrapper">
-                        <canvas id="dailyChart"></canvas>
+                        <canvas id="todayBarChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>📈 Trend Over Time</h3>
+                    <p class="chart-subtitle">Study vs break hours over recent days</p>
+                    <div class="chart-wrapper">
+                        <canvas id="trendChart"></canvas>
                     </div>
                 </div>
             </div>
