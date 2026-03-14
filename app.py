@@ -8,6 +8,8 @@ from datetime import timedelta
 from flask_session import Session
 from dotenv import load_dotenv
 import os
+import secrets
+import string
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,6 +31,15 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 migrate = Migrate(app, db)
 
+class StudyGroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    join_code = db.Column(db.String, unique=True, nullable=False)
+
+def generate_join_code(length=6):
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(characters) for _ in range(length))
+
 # Define the User model for the database
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -37,6 +48,8 @@ class User(db.Model):
     password = db.Column(db.String, nullable=False)
     security_question = db.Column(db.String, nullable=False)
     security_answer = db.Column(db.String, nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('study_group.id'), nullable=True)
+    group = db.relationship('StudyGroup', backref='members')
 
 # Define the StudySession model for the database
 class StudySession(db.Model):
@@ -236,15 +249,8 @@ def save_study_session():
 
         username = session['username']
 
-        try:
-            time_in = datetime.strptime(time_in_str, '%H:%M:%S').time()
-        except ValueError:
-            time_in = datetime.strptime(time_in_str, '%H:%M').time()
-
-        try:
-            time_out = datetime.strptime(time_out_str, '%H:%M:%S').time()
-        except ValueError:
-            time_out = datetime.strptime(time_out_str, '%H:%M').time()
+        time_in = datetime.strptime(time_in_str, '%H:%M:%S').time()
+        time_out = datetime.strptime(time_out_str, '%H:%M:%S').time()
 
         current_date = datetime.now().date()
 
@@ -536,16 +542,8 @@ def save_break():
 
         username = session['username']
 
-        # The frontend JS timer will send HH:MM:SS, but fallback to HH:MM if manual input
-        try:
-            time_in = datetime.strptime(time_in_str, '%H:%M:%S').time()
-        except ValueError:
-            time_in = datetime.strptime(time_in_str, '%H:%M').time()
-            
-        try:
-            time_out = datetime.strptime(time_out_str, '%H:%M:%S').time()
-        except ValueError:
-            time_out = datetime.strptime(time_out_str, '%H:%M').time()
+        time_in = datetime.strptime(time_in_str, '%H:%M:%S').time()
+        time_out = datetime.strptime(time_out_str, '%H:%M:%S').time()
             
         current_date = datetime.now().date()
 
@@ -624,6 +622,80 @@ def calculate_duration_mins(time_in, time_out):
         diff += 86400
     return diff / 60.0
 
+@app.route('/create_group', methods=['POST'])
+def create_group():
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+    
+    group_name = request.form.get('group_name')
+    if group_name:
+        group_name = group_name.strip()
+        
+    if not group_name:
+        flash('Group name is required! Please try again.', 'error')
+        return redirect(url_for('study_summary'))
+        
+    while True:
+        code = generate_join_code()
+        if not StudyGroup.query.filter_by(join_code=code).first():
+            break
+            
+    new_group = StudyGroup(name=group_name, join_code=code)
+    db.session.add(new_group)
+    db.session.commit()
+    
+    user = User.query.filter_by(username=session['username']).first()
+    user.group_id = new_group.id
+    db.session.commit()
+    
+    flash(f'Group "{group_name}" created! Your join code is {code}', 'success')
+    return redirect(url_for('study_summary'))
+
+@app.route('/join_group', methods=['POST'])
+def join_group():
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+        
+    join_code = request.form.get('join_code')
+    if not join_code:
+        flash('Join code is required! Please try again.', 'error')
+        return redirect(url_for('study_summary'))
+        
+    group = StudyGroup.query.filter_by(join_code=join_code.upper().strip()).first()
+    if not group:
+        flash('Invalid join code! Please try again.', 'error')
+        return redirect(url_for('study_summary'))
+        
+    user = User.query.filter_by(username=session['username']).first()
+    user.group_id = group.id
+    db.session.commit()
+    
+    flash(f'Successfully joined group "{group.name}"!', 'success')
+    return redirect(url_for('study_summary'))
+
+@app.route('/leave_group', methods=['POST'])
+def leave_group():
+    if session.get('username') == None:
+        return redirect(url_for('login'))
+        
+    user = User.query.filter_by(username=session['username']).first()
+    
+    group_id_to_check = user.group_id
+    
+    user.group_id = None
+    db.session.commit()
+    
+    if group_id_to_check:
+        remaining_members = User.query.filter_by(group_id=group_id_to_check).count()
+        if remaining_members == 0:
+            group_to_delete = StudyGroup.query.get(group_id_to_check)
+            if group_to_delete:
+                db.session.delete(group_to_delete)
+                db.session.commit()
+    
+    flash('You have left the group.', 'success')
+    return redirect(url_for('study_summary'))
+
 @app.route('/summary')
 def study_summary():
     current_date = datetime.now()
@@ -632,12 +704,23 @@ def study_summary():
     if current_username is None:
         return redirect(url_for('login'))
 
-    all_users = User.query.all()
+    current_user = User.query.filter_by(username=current_username).first()
+    if not current_user:
+        return redirect(url_for('login'))
+        
+    has_group = current_user.group_id is not None
+    group_info = None
+    
+    if has_group:
+        all_users = User.query.filter_by(group_id=current_user.group_id).all()
+        group = StudyGroup.query.get(current_user.group_id)
+        group_info = {'name': group.name, 'join_code': group.join_code}
+    else:
+        all_users = [current_user]
 
-    current_user = next((u for u in all_users if u.username == current_username), None)
-    if current_user:
+    if current_user in all_users:
         all_users.remove(current_user)
-        all_users.insert(0, current_user)
+    all_users.insert(0, current_user)
 
     today = datetime.now().date()
     week_start = today - timedelta(days=today.weekday())
@@ -763,6 +846,8 @@ def study_summary():
         current_username=current_username,
         current_fullname=current_user.fullname if current_user else '',
         week_start=week_start,
+        has_group=has_group,
+        group_info=group_info,
         # Friends chart
         friend_names=friend_names,
         friend_study_hours=friend_study_hours,

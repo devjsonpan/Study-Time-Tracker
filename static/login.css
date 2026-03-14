@@ -165,3 +165,19 @@ button[type=submit]:hover {
     font-size: 48px;
     margin-bottom: 10px;
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .login-wrapper {
+        flex-direction: column;
+    }
+
+    .info-section {
+        padding: 40px 20px;
+        text-align: center;
+    }
+
+    .login-container {
+        padding: 40px 20px;
+    }
+}

@@ -99,11 +99,9 @@ body {
 }
 
 .logout-button {
-    display: inline-block;
+    display: table;
     text-decoration: none;
-    margin-left: 1150px;
-    margin-top: 25px;
-    margin-bottom: 50px;
+    margin: 25px 20px 50px auto;
     padding: 15px 50px;
     background-color: #667eea;
     color: white;
@@ -355,4 +353,212 @@ body {
     border-radius: 8px;
     display: inline-block;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Group section styles */
+.group-actions {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.group-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    flex: 1;
+    min-width: 250px;
+    max-width: 400px;
+    text-align: left;
+}
+
+.group-card h4 {
+    margin: 0 0 15px 0;
+    color: #2d3748;
+    font-size: 18px;
+}
+
+.group-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.group-card input {
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: border-color 0.2s;
+}
+
+.group-card input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.group-card .button {
+    background-color: #667eea;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-decoration: none;
+    text-align: center;
+}
+
+.group-card .button:hover {
+    background-color: #5a67d8;
+}
+
+.group-card .join-btn, .group-card .create-btn {
+    width: 100%;
+}
+
+.group-header {
+    margin-bottom: 25px;
+}
+
+.group-header-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.group-title {
+    margin: 0;
+    color: #2d3748;
+}
+
+.group-code {
+    margin: 5px 0 0 0;
+    color: #718096;
+    font-size: 0.9em;
+}
+
+.leave-group-form {
+    margin: 0;
+}
+
+.leave-button {
+    background-color: #e53e3e !important;
+    margin: 0;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.leave-button:hover {
+    background-color: #c53030 !important;
+}
+
+/* Flash Messages for Study Summary */
+.flash-messages {
+    max-width: 1100px;
+    margin: 20px auto 0;
+    padding: 0 20px;
+}
+
+.flash-message {
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.flash-message.success {
+    background-color: #c6f6d5;
+    color: #2f855a;
+    border: 1px solid #9ae6b4;
+}
+
+.flash-message.error {
+    background-color: #fed7d7;
+    color: #c53030;
+    border: 1px solid #feb2b2;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 900px) {
+    body {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+
+    .side-panel {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 15px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .side-panel-logo {
+        width: 100%;
+        margin-bottom: 5px;
+        padding-bottom: 10px;
+    }
+
+    .side-panel .button {
+        padding: 8px 12px;
+        font-size: 13px;
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        box-sizing: border-box;
+        padding-bottom: 20px;
+    }
+
+    .logout-button {
+        margin: 15px auto;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .group-header-box {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+
+    .tabs {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .tab {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+    }
+
+    .leaderboard-row {
+        flex-wrap: wrap;
+    }
 }

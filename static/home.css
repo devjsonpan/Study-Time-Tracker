@@ -83,11 +83,9 @@ body {
 }
 
 .logout-button {
-    display: inline-block;
+    display: table;
     text-decoration: none;
-    margin-left: 1150px;
-    margin-top: 25px;
-    margin-bottom: 30px;
+    margin: 25px 20px 30px auto;
     padding: 15px 50px;
     background-color: #667eea;
     color: white;
@@ -184,4 +182,52 @@ body {
 
 .instruction-box p {
     margin: 0;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 900px) {
+    body {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+
+    .side-panel {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 15px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .side-panel-logo {
+        width: 100%;
+        margin-bottom: 5px;
+        padding-bottom: 10px;
+    }
+
+    .side-panel .button {
+        padding: 8px 12px;
+        font-size: 13px;
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        box-sizing: border-box;
+        padding-bottom: 20px;
+    }
+
+    .logout-button {
+        margin: 15px auto;
+    }
+
+    .guide-grid {
+        grid-template-columns: 1fr;
+    }
 }

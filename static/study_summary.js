@@ -52,6 +52,39 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // Friends weekly grouped bar chart
+    new Chart(document.getElementById('friendsWeeklyChart'), {
+        type: 'bar',
+        data: {
+            labels: friendNames,
+            datasets: [
+                {
+                    label: 'Study',
+                    data: friendStudy,
+                    backgroundColor: '#667eea',
+                    borderRadius: 6,
+                    borderSkipped: false,
+                },
+                {
+                    label: 'Break',
+                    data: friendBreak,
+                    backgroundColor: '#f6ad55',
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { callback: v => v + 'h' } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+
     // All-time course donut
     if (courseLabels.length > 0) {
         new Chart(document.getElementById('courseChart'), {

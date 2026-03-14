@@ -188,3 +188,28 @@ button[type=submit]:hover {
     font-size: 14px;
     border: 1px solid #feb2b2;
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .register-wrapper {
+        flex-direction: column;
+    }
+
+    .info-section {
+        padding: 40px 20px;
+        text-align: center;
+    }
+
+    .register-container {
+        padding: 40px 20px;
+    }
+
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .form-row .form-group {
+        margin-bottom: 20px;
+    }
+}

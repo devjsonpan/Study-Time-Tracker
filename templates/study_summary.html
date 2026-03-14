@@ -48,6 +48,17 @@
             <p>{{ current_date.strftime('%B %d, %Y') }}</p>
         </div>
 
+        <!-- Flash Messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
         <!-- Tabs -->
         <div class="tabs-container">
             <div class="tabs">
@@ -58,12 +69,29 @@
 
         <!-- Friends Tab -->
         <div id="tab-friends" class="tab-content active">
-            <div class="charts-grid" style="grid-template-columns: 1fr;">
+            {% if has_group %}
+            <div class="group-header group-header-box">
+                <div>
+                    <h2 class="group-title">Group Name: {{ group_info.name }}</h2>
+                    <p class="group-code">Join Code: <strong>{{ group_info.join_code }}</strong></p>
+                </div>
+                <form action="{{ url_for('leave_group') }}" method="POST" onsubmit="return confirm('Are you sure you want to leave this group?');" class="leave-group-form">
+                    <button type="submit" class="button leave-button">Leave Group</button>
+                </form>
+            </div>
+            <div class="charts-grid">
                 <div class="chart-card">
                     <h3>📊 Today's Activity</h3>
                     <p class="chart-subtitle">Study vs break hours logged today</p>
                     <div class="chart-wrapper">
                         <canvas id="friendsDailyChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>📅 Weekly Activity</h3>
+                    <p class="chart-subtitle">Study vs break hours logged this week</p>
+                    <div class="chart-wrapper">
+                        <canvas id="friendsWeeklyChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -86,6 +114,31 @@
                     {% endfor %}
                 </div>
             </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">🌎</div>
+                <h3>Join a Study Group</h3>
+                <p>You are not in a study group yet. Join one to compare stats with your friends!</p>
+                
+                <div class="group-actions">
+                    <div class="group-card">
+                        <h4>Join Existing Group</h4>
+                        <form action="{{ url_for('join_group') }}" method="POST">
+                            <input type="text" name="join_code" placeholder="Enter Join Code" required>
+                            <button type="submit" class="button join-btn">Join Group</button>
+                        </form>
+                    </div>
+                    
+                    <div class="group-card">
+                        <h4>Create New Group</h4>
+                        <form action="{{ url_for('create_group') }}" method="POST">
+                            <input type="text" name="group_name" placeholder="Enter Group Name" required>
+                            <button type="submit" class="button create-btn">Create Group</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- My Stats Tab -->
@@ -158,6 +211,16 @@
                 }
             }
         });
+
+        // Auto-hide flash messages after 3 seconds
+        setTimeout(function() {
+            const flashMessages = document.querySelectorAll('.flash-message');
+            flashMessages.forEach(function(msg) {
+                msg.style.transition = 'opacity 0.5s ease';
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 500); // Wait for transition to finish
+            });
+        }, 3000);
     </script>
 </body>
 </html>
