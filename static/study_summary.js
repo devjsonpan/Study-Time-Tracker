@@ -19,12 +19,14 @@ document.addEventListener("DOMContentLoaded", function () {
     Chart.defaults.font.family = 'Arial, sans-serif';
     Chart.defaults.color = '#4a5568';
 
-    // Friends daily grouped bar chart
-    new Chart(document.getElementById('friendsDailyChart'), {
-        type: 'bar',
-        data: {
-            labels: friendNames,
-            datasets: [
+    // Friends daily grouped bar chart (only if in a group)
+    const friendsDailyEl = document.getElementById('friendsDailyChart');
+    if (friendsDailyEl) {
+        new Chart(friendsDailyEl, {
+            type: 'bar',
+            data: {
+                labels: friendNames,
+                datasets: [
                 {
                     label: 'Study',
                     data: friendTodayStudy,
@@ -38,26 +40,28 @@ document.addEventListener("DOMContentLoaded", function () {
                     backgroundColor: '#f6ad55',
                     borderRadius: 6,
                     borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { callback: v => v + 'h' } },
+                    y: { grid: { display: false } }
                 }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            plugins: { legend: { position: 'bottom' } },
-            scales: {
-                x: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { callback: v => v + 'h' } },
-                y: { grid: { display: false } }
             }
-        }
-    });
+        });
+    }
 
-    // Friends weekly grouped bar chart
-    new Chart(document.getElementById('friendsWeeklyChart'), {
-        type: 'bar',
-        data: {
-            labels: friendNames,
-            datasets: [
+    // Friends weekly grouped bar chart (only if in a group)
+    const friendsWeeklyEl = document.getElementById('friendsWeeklyChart');
+    if (friendsWeeklyEl) {
+        new Chart(friendsWeeklyEl, {
+            type: 'bar',
+            data: {
+                labels: friendNames,
+                datasets: [
                 {
                     label: 'Study',
                     data: friendStudy,
@@ -71,19 +75,19 @@ document.addEventListener("DOMContentLoaded", function () {
                     backgroundColor: '#f6ad55',
                     borderRadius: 6,
                     borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { callback: v => v + 'h' } },
+                    y: { grid: { display: false } }
                 }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            plugins: { legend: { position: 'bottom' } },
-            scales: {
-                x: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { callback: v => v + 'h' } },
-                y: { grid: { display: false } }
             }
-        }
-    });
+        });
+    }
 
     // All-time course donut
     if (courseLabels.length > 0) {
