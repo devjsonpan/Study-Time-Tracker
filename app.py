@@ -578,7 +578,7 @@ def notes():
     sessions_with_notes = StudySession.query.filter_by(
         username=username,
         hidden_from_notes=False
-    ).order_by(StudySession.date.desc()).all()
+    ).order_by(StudySession.date.desc(), StudySession.time_in.desc()).all()
     
     return render_template('notes.html', sessions=sessions_with_notes)
 
