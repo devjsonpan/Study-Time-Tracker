@@ -87,6 +87,12 @@ html.dark-theme .empty-state p {
     color: #cbd5e1 !important;
 }
 
+html.dark-theme .welcome-card p,
+html.dark-theme .guide-body p,
+html.dark-theme .calendar-header p {
+    color: #cbd5e1 !important;
+}
+
 /* Distinct boxes (info, instructions, filters, search) */
 html.dark-theme .info-box,
 html.dark-theme .instruction-box,
