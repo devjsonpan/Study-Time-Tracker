@@ -4,7 +4,7 @@
 
 from alembic.autogenerate.compare import server_defaults
 from alembic.autogenerate.compare import schema
-from flask import Flask, render_template, request, redirect, url_for, session, flash, get_flashed_messages, jsonify
+from flask import Flask, request, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
@@ -20,6 +20,8 @@ import time
 import string
 import pytz
 import requests as http_requests
+from google import genai
+from google.genai import types as genai_types
 
 # app.env is not the default .env filename, so it must be passed explicitly
 load_dotenv('app.env')
@@ -100,9 +102,9 @@ def send_reset_email(to_email, reset_code):
                 'Content-Type': 'application/json',
             },
             json={
-                'sender': {'name': 'Study Tracker', 'email': 'studytracker.noreply@gmail.com'},
+                'sender': {'name': 'LockNIn', 'email': 'studytracker.noreply@gmail.com'},
                 'to': [{'email': to_email}],
-                'subject': 'Password Reset Code - Study Tracker',
+                'subject': 'Password Reset Code - LockNIn',
                 'textContent': f'Your password reset code is: {reset_code}\n\nIf you did not request this, please ignore this email.',
             },
             timeout=10,
@@ -125,6 +127,9 @@ class User(db.Model):
     email = db.Column(db.String, unique=True, nullable=True)      # used for password reset + OAuth linking
     group_id = db.Column(db.Integer, db.ForeignKey('study_group.id'), nullable=True)
     group = db.relationship('StudyGroup', backref='members')
+    # AI import rate limiting — reset daily per user's local timezone
+    parse_date  = db.Column(db.Date, nullable=True)
+    parse_count = db.Column(db.Integer, default=0, nullable=False, server_default='0')
 
 class StudySession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -167,211 +172,33 @@ class BreakEntry(db.Model):
     start_datetime = db.Column(db.DateTime, nullable=False)
     end_datetime = db.Column(db.DateTime, nullable=False)
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, nullable=False)
+    sender = db.Column(db.String(80), nullable=False)
+    content = db.Column(db.Text, nullable=True)
+    file_url = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=get_current_datetime)
+
+class Conversation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(10), nullable=False)
+    group_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=get_current_datetime)
+
+class Friendship(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender = db.Column(db.String(80), nullable=False)
+    receiver = db.Column(db.String(80), nullable=False)
+    status = db.Column(db.String(10), nullable=False)
+    created_at = db.Column(db.DateTime, default=get_current_datetime)
+
+class ConversationMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, nullable=False)
+    username = db.Column(db.String(80), nullable=False)
+    
 # --- Auth Routes ---
-
-@app.route('/', methods=['GET', 'POST'])
-def login():
-    error = None
-    success = None
-    show_reset_form = request.args.get('forgot') == '1'
-    
-    # Check for flash messages
-    flashed_messages = get_flashed_messages(with_categories=True)
-    for category, message in flashed_messages:
-        if category == 'success':
-            success = message
-        elif category == 'error':
-            error = message
-    
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-
-        user = User.query.filter_by(username=username).first()
-
-        if user and user.password and bcrypt.check_password_hash(user.password, password):
-            session['username'] = user.username
-            return redirect(url_for('home', fullname=user.fullname))
-        else:
-            error = 'Invalid login credentials. Please try again.'
-
-    return render_template(
-        'login.html',
-        error=error,
-        success=success,
-        show_reset_form=show_reset_form,
-        supabase_url=os.getenv('SUPABASE_URL', ''),
-        supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', '')
-    )
-
-@app.route('/reset_password', methods=['POST'])
-def reset_password():
-    error = None
-    email = request.form.get('email')
-    verification_code = request.form.get('verification_code')
-    new_password = request.form.get('new_password')
-    confirm_password = request.form.get('confirm_password')
-    
-    if not email:
-        return redirect(url_for('login', forgot=1))
-        
-    user = User.query.filter_by(email=email).first()
-    
-    if not user:
-        error = 'Email not found.'
-        return render_template('login.html', 
-                             error=error, 
-                             show_reset_form=True,
-                             supabase_url=os.getenv('SUPABASE_URL', ''),
-                             supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-    
-    # If verification code not provided yet, generate and send it
-    if not verification_code:
-        # 60-second cooldown to prevent spam
-        last_sent = session.get('reset_code_sent_at')
-        if last_sent and (time.time() - last_sent) < 60:
-            remaining = int(60 - (time.time() - last_sent))
-            error = f'Please wait {remaining} second{"s" if remaining != 1 else ""} before requesting another code.'
-            return render_template('login.html',
-                                 error=error,
-                                 show_reset_form=True,
-                                 supabase_url=os.getenv('SUPABASE_URL', ''),
-                                 supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-
-        import random
-        code = f"{random.randint(100000, 999999)}"
-        session['reset_code'] = code
-        session['reset_email'] = email
-        session['reset_code_sent_at'] = time.time()
-        session['reset_code_expiry'] = time.time() + 600  # expires in 10 minutes
-
-        if send_reset_email(email, code):
-            return render_template('login.html',
-                                 show_reset_form=True,
-                                 code_sent=True,
-                                 reset_email=email,
-                                 supabase_url=os.getenv('SUPABASE_URL', ''),
-                                 supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-        else:
-            error = 'Failed to send reset email. Please try again later.'
-            return render_template('login.html',
-                                 error=error,
-                                 show_reset_form=True,
-                                 supabase_url=os.getenv('SUPABASE_URL', ''),
-                                 supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-
-    # Check if code has expired (10-minute window)
-    if time.time() > session.get('reset_code_expiry', 0):
-        session.pop('reset_code', None)
-        session.pop('reset_code_expiry', None)
-        session.pop('reset_code_sent_at', None)
-        error = 'Your verification code has expired. Please request a new one.'
-        return render_template('login.html',
-                             error=error,
-                             show_reset_form=True,
-                             supabase_url=os.getenv('SUPABASE_URL', ''),
-                             supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-
-    # Verify code
-    if verification_code != session.get('reset_code') or email != session.get('reset_email'):
-        error = 'Invalid verification code.'
-        return render_template('login.html',
-                             error=error,
-                             show_reset_form=True,
-                             code_sent=True,
-                             reset_email=email,
-                             supabase_url=os.getenv('SUPABASE_URL', ''),
-                             supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-    
-    # Check if passwords match
-    if new_password != confirm_password:
-        error = 'Passwords do not match.'
-        return render_template('login.html', 
-                             error=error, 
-                             show_reset_form=True, 
-                             code_sent=True, 
-                             reset_email=email,
-                             supabase_url=os.getenv('SUPABASE_URL', ''),
-                             supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-    
-    # Update password
-    user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
-    db.session.commit()
-    
-    session.pop('reset_code', None)
-    session.pop('reset_email', None)
-    session.pop('reset_code_expiry', None)
-    session.pop('reset_code_sent_at', None)
-    
-    # Redirect to login page with success message
-    flash('Password reset successful! You can now login with your new password.', 'success')
-    return redirect(url_for('login'))
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    error = None
-    
-    if request.method == 'POST':
-        username = request.form.get('username')
-        fullname = request.form.get('fullname')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        email = request.form.get('email')
-        timezone = request.form.get('timezone')
-
-        # Check if passwords match
-        if password != confirm_password:
-            error = 'Passwords do not match. Please try again.'
-            return render_template('register.html', error=error, timezones=TIMEZONES, selected_timezone=timezone, supabase_url=os.getenv('SUPABASE_URL', ''), supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-        
-        # Check if email is provided
-        if not email or len(email.strip()) == 0:
-            error = 'Please provide an email address.'
-            return render_template('register.html', error=error, timezones=TIMEZONES, selected_timezone=timezone, supabase_url=os.getenv('SUPABASE_URL', ''), supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-
-        if not timezone or timezone not in TIMEZONES:
-            error = 'Please select a valid timezone.'
-            return render_template('register.html', error=error, timezones=TIMEZONES, selected_timezone=timezone, supabase_url=os.getenv('SUPABASE_URL', ''), supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-            
-        existing_user = User.query.filter_by(username=username).first()
-        existing_email = User.query.filter_by(email=email).first()
-        
-        # Check if new user can be created
-        if existing_user:
-            error = 'Username is already taken. Please choose a different username.'
-            return render_template('register.html', error=error, timezones=TIMEZONES, selected_timezone=timezone, supabase_url=os.getenv('SUPABASE_URL', ''), supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-        elif existing_email:
-            error = 'Email is already registered. Please log in or use a different email.'
-            return render_template('register.html', error=error, timezones=TIMEZONES, selected_timezone=timezone, supabase_url=os.getenv('SUPABASE_URL', ''), supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-        else:
-            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-            new_user = User(
-                username=username, 
-                fullname=fullname, 
-                email=email,
-                password=hashed_password, 
-                timezone=timezone,
-            )
-            db.session.add(new_user)
-            db.session.commit()
-
-            session['username'] = new_user.username
-            return redirect(url_for('login'))
-
-    return render_template('register.html', error=error, timezones=TIMEZONES, selected_timezone=None, supabase_url=os.getenv('SUPABASE_URL', ''), supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', ''))
-
-# Google OAuth flow (implicit mode):
-# 1. Login page calls Supabase JS signInWithOAuth → redirects to Google
-# 2. Google redirects back to Supabase, which redirects to /auth/callback with token in URL hash
-# 3. auth_callback.html JS reads the token and POSTs it to /auth/verify
-# 4. /auth/verify validates against Supabase REST API, then creates or links a User row
-@app.route('/auth/callback')
-def auth_callback():
-    return render_template(
-        'auth_callback.html',
-        supabase_url=os.getenv('SUPABASE_URL', ''),
-        supabase_anon_key=os.getenv('SUPABASE_ANON_KEY', '')
-    )
 
 # Verify Supabase access token and create/find user in DB
 @app.route('/auth/verify', methods=['POST'])
@@ -439,552 +266,240 @@ def auth_verify():
     session['username'] = user.username
     return jsonify({'success': True})
 
-# --- Core Routes ---
+# --- Homework API Routes (JSON) ---
+# These mirror the template-based routes above but return JSON for the React frontend.
+# The React app calls these via fetch(); Flask responds with data, not HTML.
 
-@app.route('/home')
-def home():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-
-    username = session.get('username')
-    fullname = User.query.filter_by(username=username).first().fullname
-
-    return render_template('home.html', username=username, fullname=fullname)
-
-@app.route('/profile', methods=['GET', 'POST'])
-def profile():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-
-    user = User.query.filter_by(username=session['username']).first()
-    
-    if request.method == 'POST':
-        new_fullname = request.form.get('fullname')
-        new_timezone = request.form.get('timezone')
-        new_email = request.form.get('email', '').strip()
-
-        if new_fullname:
-            user.fullname = new_fullname
-
-        if new_timezone and new_timezone in TIMEZONES:
-            user.timezone = new_timezone
-        elif new_timezone:
-            flash('Please select a valid timezone.', 'error')
-            return render_template('profile.html', user=user, timezones=TIMEZONES)
-
-        # Only allow setting email if one isn't already on the account
-        if new_email and not user.email:
-            existing = User.query.filter_by(email=new_email).first()
-            if existing:
-                flash('That email is already linked to another account.', 'error')
-                return render_template('profile.html', user=user, timezones=TIMEZONES)
-            user.email = new_email
-
-        db.session.commit()
-        flash('Profile updated successfully!', 'success')
-
-    return render_template('profile.html', user=user, timezones=TIMEZONES)
-
-# --- Study Session Routes ---
-
-@app.route('/session')
-def study_session():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-
-    return render_template('study_session.html')
-
-@app.route('/save_study_session', methods=['POST'])
-def save_study_session():
-    if request.method == 'POST':
-        course = request.form.get('course')
-        topic = request.form.get('topic')
-        time_in_str = request.form.get('time_in')
-        time_out_str = request.form.get('time_out')
-        notes = request.form.get('notes')
-
-        username = session['username']
-
-        start_datetime = datetime.strptime(time_in_str, '%Y-%m-%d %H:%M:%S')
-        end_datetime = datetime.strptime(time_out_str, '%Y-%m-%d %H:%M:%S')
-
-        new_entry = StudySession(
-            username=username, 
-            course=course, 
-            topic=topic,
-            start_datetime=start_datetime, 
-            end_datetime=end_datetime,
-            notes=notes
-        )
-
-        db.session.add(new_entry)
-        db.session.commit()
-
-        return redirect(url_for('study_session'))
-
-    return render_template('study_session.html')
-
-# --- Homework Routes ---
-
-@app.route('/homework')
-def homework():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
+@app.route('/api/homework', methods=['GET'])
+def api_get_homework():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
 
     username = session['username']
-    sort_by = request.args.get('sort')
-    if sort_by:
-        session['sort_homework'] = sort_by
-    else:
-        sort_by = session.get('sort_homework', 'deadline_asc')
+    tasks = HomeworkTask.query.filter_by(username=username).order_by(HomeworkTask.due_date.asc()).all()
 
-    query = HomeworkTask.query.filter_by(username=username)
-    
-    if sort_by == 'deadline_desc':
-        query = query.order_by(HomeworkTask.due_date.desc())
-    elif sort_by == 'starred':
-        query = query.order_by(HomeworkTask.is_important.desc(), HomeworkTask.due_date.asc())
-    elif sort_by == 'az':
-        query = query.order_by(HomeworkTask.task_name.asc(), HomeworkTask.due_date.asc())
-    elif sort_by == 'not_completed':
-        query = query.order_by(HomeworkTask.is_completed.asc(), HomeworkTask.due_date.asc())
-    else: # deadline_asc
-        query = query.order_by(HomeworkTask.due_date.asc())
-        
-    tasks = query.all()
+    # Convert each SQLAlchemy model object to a plain dict so jsonify() can serialize it.
+    # SQLAlchemy objects can't be serialized to JSON directly — you have to extract the fields manually.
+    return jsonify([{
+        'id': t.id,
+        'course': t.course,
+        'task_name': t.task_name,
+        'description': t.description,
+        'due_date': t.due_date.isoformat(),  # ISO string e.g. "2026-08-15T23:59:00" — easy to parse in JS
+        'is_completed': t.is_completed,
+        'is_important': t.is_important,
+    } for t in tasks])
 
-    # Set default deadline to current day at 11:59 PM
-    current_datetime = get_current_datetime(get_user_timezone(username))
-    default_deadline = current_datetime.replace(hour=23, minute=59, second=0)
+@app.route('/api/homework', methods=['POST'])
+def api_create_homework():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
 
-    # Format for datetime-local input (YYYY-MM-DDThh:mm)
-    default_deadline_str = default_deadline.strftime('%Y-%m-%dT%H:%M')
-
-    return render_template('homework.html', tasks=tasks, now=get_current_datetime(get_user_timezone(username)), default_deadline=default_deadline_str, current_sort=sort_by)
-
-@app.route('/save_homework', methods=['POST'])
-def save_homework():
-    if request.method == 'POST':
-        course = request.form.get('course')
-        task_name = request.form.get('task_name')
-        description = request.form.get('description') or None
-        due_date_str = request.form.get('due_date')
-        
-        username = session['username']
-        
-        # Convert string to date
-        due_date = datetime.strptime(due_date_str, '%Y-%m-%dT%H:%M')
-        
-        new_task = HomeworkTask(
-            username=username,
-            course=course,
-            task_name=task_name,
-            description=description,
-            due_date=due_date
-        )
-        
-        db.session.add(new_task)
-        db.session.commit()
-
-        return redirect(url_for('homework', sort=session.get('sort_homework', 'deadline_asc')))
-
-    return redirect(url_for('homework', sort=session.get('sort_homework', 'deadline_asc')))
-
-@app.route('/complete_task/<int:task_id>')
-def complete_task(task_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    task = HomeworkTask.query.get_or_404(task_id)
-    
-    # Only allow user to complete their own tasks
-    if task.username == session['username']:
-        task.is_completed = not task.is_completed  # Toggle completion status
-        db.session.commit()
-
-    return redirect(url_for('homework', sort=session.get('sort_homework', 'deadline_asc')))
-
-@app.route('/toggle_task_importance/<int:task_id>')
-def toggle_task_importance(task_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-        
-    task = HomeworkTask.query.get_or_404(task_id)
-    
-    if task.username == session['username']:
-        task.is_important = not task.is_important
-        db.session.commit()
-        
-    # Return to same page, keeping query params if any
-    return redirect(request.referrer or url_for('homework'))
-
-@app.route('/delete_task/<int:task_id>')
-def delete_task(task_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    task = HomeworkTask.query.get_or_404(task_id)
-    
-    # Only allow user to delete their own tasks
-    if task.username == session['username']:
-        db.session.delete(task)
-        db.session.commit()
-
-    return redirect(url_for('homework', sort=session.get('sort_homework', 'deadline_asc')))
-
-@app.route('/edit_task/<int:task_id>', methods=['POST'])
-def edit_task(task_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    task = HomeworkTask.query.get_or_404(task_id)
-    
-    if task.username == session['username']:
-        task.course = request.form.get('course')
-        task.task_name = request.form.get('task_name')
-        task.due_date = datetime.strptime(request.form.get('due_date'), '%Y-%m-%dT%H:%M')
-        task.description = request.form.get('description')
-        db.session.commit()
-        flash('Task updated successfully!', 'success')
-
-    return redirect(url_for('homework', sort=session.get('sort_homework', 'deadline_asc')))
- 
-# --- Events Routes ---
-
-@app.route('/events')
-def events():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
+    data = request.get_json()
     username = session['username']
-    sort_by = request.args.get('sort')
-    if sort_by:
-        session['sort_events'] = sort_by
-    else:
-        sort_by = session.get('sort_events', 'start_asc')
 
-    query = Event.query.filter_by(username=username)
-    
-    if sort_by == 'start_desc':
-        query = query.order_by(Event.start_datetime.desc())
-    elif sort_by == 'starred':
-        query = query.order_by(Event.is_important.desc(), Event.start_datetime.asc())
-    elif sort_by == 'az':
-        query = query.order_by(Event.event_name.asc(), Event.start_datetime.asc())
-    elif sort_by == 'not_completed':
-        query = query.order_by(Event.is_completed.asc(), Event.start_datetime.asc())
-    else: # start_asc
-        query = query.order_by(Event.start_datetime.asc())
-        
-    all_events = query.all()
+    try:
+        due_date = datetime.fromisoformat(data['due_date'])
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid due_date'}), 400
 
-    current_datetime = get_current_datetime(get_user_timezone(username))
-
-    # Default start: round up to next hour
-    default_start = current_datetime.replace(minute=0, second=0, microsecond=0)
-    if current_datetime.minute > 0 or current_datetime.second > 0:
-        default_start += timedelta(hours=1)
-    
-    # If it's late (after 10 PM), default to tomorrow at 9 AM
-    if default_start.hour >= 22:
-        default_start = (current_datetime + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-    
-    # Default end: 1 hour after start
-    default_end = default_start + timedelta(hours=1)
-    
-    default_start_str = default_start.strftime('%Y-%m-%dT%H:%M')
-    default_end_str = default_end.strftime('%Y-%m-%dT%H:%M')
-    
-    return render_template('events.html', 
-                         events=all_events, 
-                         now=current_datetime,
-                         default_start=default_start_str,
-                         default_end=default_end_str,
-                         current_sort=sort_by)
-
-@app.route('/save_event', methods=['POST'])
-def save_event():
-    if request.method == 'POST':
-        event_name = request.form.get('event_name')
-        start_datetime_str = request.form.get('start_datetime')
-        end_datetime_str = request.form.get('end_datetime')
-        location = request.form.get('location')
-        description = request.form.get('description')
-        
-        username = session['username']
-        
-        # Convert string to datetime
-        start_datetime = datetime.strptime(start_datetime_str, '%Y-%m-%dT%H:%M')
-        end_datetime = datetime.strptime(end_datetime_str, '%Y-%m-%dT%H:%M')
-        
-        if start_datetime >= end_datetime:
-            flash('The start time must be before the end time.', 'error')
-            return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-        new_event = Event(
-            username=username,
-            event_name=event_name,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            location=location,
-            description=description
-        )
-        
-        db.session.add(new_event)
-        db.session.commit()
-
-        return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-    return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-@app.route('/complete_event/<int:event_id>')
-def complete_event(event_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    event = Event.query.get_or_404(event_id)
-    
-    # Only allow user to complete their own events
-    if event.username == session['username']:
-        event.is_completed = not event.is_completed  # Toggle completion status
-        db.session.commit()
-
-    return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-@app.route('/toggle_event_importance/<int:event_id>')
-def toggle_event_importance(event_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-        
-    event = Event.query.get_or_404(event_id)
-    
-    if event.username == session['username']:
-        event.is_important = not event.is_important
-        db.session.commit()
-        
-    # Return to same page, keeping query params if any
-    return redirect(request.referrer or url_for('events'))
-
-@app.route('/delete_event/<int:event_id>')
-def delete_event(event_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    event = Event.query.get_or_404(event_id)
-    
-    # Only allow user to delete their own events
-    if event.username == session['username']:
-        db.session.delete(event)
-        db.session.commit()
-
-    return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-@app.route('/edit_event/<int:event_id>', methods=['POST'])
-def edit_event(event_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    event = Event.query.get_or_404(event_id)
-    
-    if event.username == session['username']:
-        start_datetime = datetime.strptime(request.form.get('start_datetime'), '%Y-%m-%dT%H:%M')
-        end_datetime = datetime.strptime(request.form.get('end_datetime'), '%Y-%m-%dT%H:%M')
-        
-        if start_datetime >= end_datetime:
-            flash('The start time must be before the end time.', 'error')
-            return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-        event.event_name = request.form.get('event_name')
-        event.start_datetime = start_datetime
-        event.end_datetime = end_datetime
-        event.location = request.form.get('location')
-        event.description = request.form.get('description')
-        db.session.commit()
-        flash('Event updated successfully!', 'success')
-
-    return redirect(url_for('events', sort=session.get('sort_events', 'start_asc')))
-
-# --- Calendar Route ---
-
-@app.route('/calendar')
-def calendar_view():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-        
-    username = session['username']
-    
-    tasks = HomeworkTask.query.filter_by(username=username).all()
-    events = Event.query.filter_by(username=username).all()
-    
-    calendar_events = []
-    
-    for task in tasks:
-        if task.is_completed:
-            bg_color = '#48bb78'
-        elif task.due_date < get_current_datetime(get_user_timezone(username)):
-            bg_color = '#e53e3e'
-        else:
-            bg_color = '#ff9900'
-
-        calendar_events.append({
-            'title': f"{task.course}: {task.task_name}",
-            'start': task.due_date.isoformat(),
-            'backgroundColor': bg_color,
-            'borderColor': bg_color,
-            'textColor': '#fff',
-            'display': 'list-item',
-            'extendedProps': {
-                'type': 'task',
-                'completed': task.is_completed,
-                'description': task.description or 'N/A',
-                'deadline': task.due_date.strftime('%B %d, %Y at %I:%M %p')
-            }
-        })
-
-    for event in events:
-        end_dt = event.end_datetime
-        # FullCalendar treats midnight as "end of previous day", so nudge it to avoid disappearing events
-        if end_dt.hour == 0 and end_dt.minute == 0:
-            end_dt = end_dt + timedelta(minutes=1)
-
-        calendar_events.append({
-            'title': f"{event.event_name}",
-            'start': event.start_datetime.isoformat(),
-            'end': end_dt.isoformat(),
-            'backgroundColor': '#48bb78' if event.is_completed else '#667eea',
-            'borderColor': '#38a169' if event.is_completed else '#5568d3',
-            'textColor': '#fff',
-            'display': 'block',
-            'extendedProps': {
-                'type': 'event',
-                'completed': event.is_completed,
-                'real_start': event.start_datetime.strftime('%B %d, %Y at %I:%M %p'),
-                'real_end': event.end_datetime.strftime('%B %d, %Y at %I:%M %p'),
-                'location': event.location or 'N/A',
-                'description': event.description or 'N/A'
-            }
-        })
-
-    return render_template('calendar.html', calendar_events=calendar_events)
-
-# --- Break Routes ---
-
-@app.route('/break')
-def break_time():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    return render_template('break_time.html')
-
-@app.route('/save_break', methods=['POST'])
-def save_break():
-    if request.method == 'POST':
-        time_in_str = request.form.get('time_in')
-        time_out_str = request.form.get('time_out')
-
-        username = session['username']
-
-        start_datetime = datetime.strptime(time_in_str, '%Y-%m-%d %H:%M:%S')
-        end_datetime = datetime.strptime(time_out_str, '%Y-%m-%d %H:%M:%S')
-
-        new_entry = BreakEntry(
-            username=username, 
-            start_datetime=start_datetime, 
-            end_datetime=end_datetime
-        )
-        db.session.add(new_entry)
-        db.session.commit()
-
-        return redirect(url_for('break_time'))
-
-    return render_template('break_time.html')
-
-# --- Notes Routes ---
-
-@app.route('/notes')
-def notes():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    username = session['username']
-    sort_by = request.args.get('sort')
-    if sort_by:
-        session['sort_notes'] = sort_by
-    else:
-        sort_by = session.get('sort_notes', 'newest')
-
-    query = StudySession.query.filter_by(
+    task = HomeworkTask(
         username=username,
-        hidden_from_notes=False
+        course=data.get('course', ''),
+        task_name=data.get('task_name', ''),
+        description=data.get('description') or None,
+        due_date=due_date,
     )
-    
-    if sort_by == 'oldest':
-        query = query.order_by(StudySession.start_datetime.asc())
-    elif sort_by == 'az':
-        query = query.order_by(StudySession.course.asc(), StudySession.start_datetime.desc())
-    elif sort_by == 'starred':
-        query = query.order_by(StudySession.is_important.desc(), StudySession.start_datetime.desc())
-    else: # newest
-        query = query.order_by(StudySession.start_datetime.desc())
-        
-    sessions_with_notes = query.all()
-    
-    return render_template('notes.html', sessions=sessions_with_notes, current_sort=sort_by)
+    db.session.add(task)
+    db.session.commit()
 
-@app.route('/toggle_note_importance/<int:session_id>')
-def toggle_note_importance(session_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-        
-    study_session = StudySession.query.get_or_404(session_id)
-    
-    if study_session.username == session['username']:
-        study_session.is_important = not study_session.is_important
-        db.session.commit()
-        
-    return redirect(request.referrer or url_for('notes'))
+    # Return the created task so React can add it to the list immediately without re-fetching.
+    return jsonify({
+        'id': task.id,
+        'course': task.course,
+        'task_name': task.task_name,
+        'description': task.description,
+        'due_date': task.due_date.isoformat(),
+        'is_completed': task.is_completed,
+        'is_important': task.is_important,
+    }), 201
 
-@app.route('/delete_note/<int:session_id>')
-def delete_note(session_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    username = session['username']
-    # Find the study session
-    study_session = StudySession.query.get_or_404(session_id)
-    
-    # Make sure user can only delete their own notes
-    if study_session.username == username:
-        study_session.hidden_from_notes = True
-        study_session.notes = None
-        db.session.commit()
-        flash('Note deleted successfully!', 'success')
-    else:
-        flash('You do not have permission to delete this note.', 'error')
+@app.route('/api/homework/<int:task_id>/complete', methods=['POST'])
+def api_complete_task(task_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
 
-    return redirect(url_for('notes', sort=session.get('sort_notes', 'newest')))
+    task = HomeworkTask.query.get_or_404(task_id)
+    if task.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
 
-@app.route('/edit_note/<int:session_id>', methods=['POST'])
-def edit_note(session_id):
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    username = session['username']
-    # Find the study session
-    study_session = StudySession.query.get_or_404(session_id)
-    
-    # Make sure user can only edit their own notes
-    if study_session.username == username:
-        # Update the fields
-        study_session.course = request.form.get('course')
-        study_session.topic = request.form.get('topic')
-        study_session.notes = request.form.get('notes')
-        db.session.commit()
-        flash('Note updated successfully!', 'success')
-    else:
-        flash('You do not have permission to edit this note.', 'error')
+    task.is_completed = not task.is_completed
+    db.session.commit()
+    return jsonify({'id': task.id, 'is_completed': task.is_completed})
 
-    return redirect(url_for('notes', sort=session.get('sort_notes', 'newest')))
+@app.route('/api/homework/<int:task_id>/importance', methods=['POST'])
+def api_toggle_task_importance(task_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    task = HomeworkTask.query.get_or_404(task_id)
+    if task.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    task.is_important = not task.is_important
+    db.session.commit()
+    return jsonify({'id': task.id, 'is_important': task.is_important})
+
+@app.route('/api/homework/<int:task_id>', methods=['DELETE'])
+def api_delete_task(task_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    task = HomeworkTask.query.get_or_404(task_id)
+    if task.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/homework/<int:task_id>', methods=['PUT'])
+def api_edit_task(task_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    task = HomeworkTask.query.get_or_404(task_id)
+    if task.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    data = request.get_json()
+    task.course = data.get('course', task.course)
+    task.task_name = data.get('task_name', task.task_name)
+    task.description = data.get('description') or None
+    try:
+        task.due_date = datetime.fromisoformat(data['due_date'])
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid due_date'}), 400
+
+    db.session.commit()
+    return jsonify({
+        'id': task.id,
+        'course': task.course,
+        'task_name': task.task_name,
+        'description': task.description,
+        'due_date': task.due_date.isoformat(),
+        'is_completed': task.is_completed,
+        'is_important': task.is_important,
+    })
+
+# --- Events API Routes (JSON) ---
+
+@app.route('/api/events', methods=['GET'])
+def api_get_events():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    events = Event.query.filter_by(username=session['username']).order_by(Event.start_datetime.asc()).all()
+    return jsonify([{
+        'id': e.id,
+        'event_name': e.event_name,
+        'start_datetime': e.start_datetime.isoformat(),
+        'end_datetime': e.end_datetime.isoformat(),
+        'location': e.location,
+        'description': e.description,
+        'is_completed': e.is_completed,
+        'is_important': e.is_important,
+    } for e in events])
+
+@app.route('/api/events', methods=['POST'])
+def api_create_event():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    try:
+        start = datetime.fromisoformat(data['start_datetime'])
+        end = datetime.fromisoformat(data['end_datetime'])
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid datetimes'}), 400
+    if start >= end:
+        return jsonify({'error': 'Start must be before end'}), 400
+    event = Event(
+        username=session['username'],
+        event_name=data.get('event_name', ''),
+        start_datetime=start,
+        end_datetime=end,
+        location=data.get('location') or None,
+        description=data.get('description') or None,
+    )
+    db.session.add(event)
+    db.session.commit()
+    return jsonify({
+        'id': event.id, 'event_name': event.event_name,
+        'start_datetime': event.start_datetime.isoformat(),
+        'end_datetime': event.end_datetime.isoformat(),
+        'location': event.location, 'description': event.description,
+        'is_completed': event.is_completed, 'is_important': event.is_important,
+    }), 201
+
+@app.route('/api/events/<int:event_id>/complete', methods=['POST'])
+def api_complete_event(event_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    event = Event.query.get_or_404(event_id)
+    if event.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    event.is_completed = not event.is_completed
+    db.session.commit()
+    return jsonify({'id': event.id, 'is_completed': event.is_completed})
+
+@app.route('/api/events/<int:event_id>/importance', methods=['POST'])
+def api_toggle_event_importance(event_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    event = Event.query.get_or_404(event_id)
+    if event.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    event.is_important = not event.is_important
+    db.session.commit()
+    return jsonify({'id': event.id, 'is_important': event.is_important})
+
+@app.route('/api/events/<int:event_id>', methods=['DELETE'])
+def api_delete_event(event_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    event = Event.query.get_or_404(event_id)
+    if event.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    db.session.delete(event)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/events/<int:event_id>', methods=['PUT'])
+def api_edit_event(event_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    event = Event.query.get_or_404(event_id)
+    if event.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    data = request.get_json()
+    event.event_name = data.get('event_name', event.event_name)
+    event.location = data.get('location') or None
+    event.description = data.get('description') or None
+    try:
+        event.start_datetime = datetime.fromisoformat(data['start_datetime'])
+        event.end_datetime = datetime.fromisoformat(data['end_datetime'])
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid datetime'}), 400
+    db.session.commit()
+    return jsonify({
+        'id': event.id,
+        'event_name': event.event_name,
+        'start_datetime': event.start_datetime.isoformat(),
+        'end_datetime': event.end_datetime.isoformat(),
+        'location': event.location,
+        'description': event.description,
+        'is_completed': event.is_completed,
+        'is_important': event.is_important,
+    })
 
 # --- Study Groups ---
 
@@ -1005,107 +520,521 @@ def calculate_duration_mins(start_datetime, end_datetime, target_date=None):
         return (chunk_end - chunk_start).total_seconds() / 60.0
     return 0.0
 
-@app.route('/create_group', methods=['POST'])
-def create_group():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-    
-    group_name = request.form.get('group_name')
-    if group_name:
-        group_name = group_name.strip()
-        
+# =============================================================================
+# JSON API Routes for the React frontend
+# All routes below mirror the template-based routes above but return JSON.
+# Pattern: auth check → ownership check → database op → jsonify response.
+# =============================================================================
+
+# --- Auth API Routes ---
+
+@app.route('/api/auth/supabase-config', methods=['GET'])
+def api_supabase_config():
+    """Returns public Supabase keys for the React frontend to initialize the JS SDK."""
+    return jsonify({
+        'supabase_url': os.getenv('SUPABASE_URL', ''),
+        'supabase_anon_key': os.getenv('SUPABASE_ANON_KEY', ''),
+    })
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    """Returns the logged-in user's info, or 401 if the session has no username."""
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({
+        'username': user.username,
+        'fullname': user.fullname,
+        'email': user.email,
+        'timezone': user.timezone,
+        'has_google': user.google_id is not None,
+    })
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    """Username/password login — sets Flask session cookie on success."""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.password or not bcrypt.check_password_hash(user.password, password):
+        return jsonify({'error': 'Invalid username or password'}), 401
+
+    session['username'] = user.username
+    return jsonify({'username': user.username, 'fullname': user.fullname})
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def api_forgot_password():
+    data = request.get_json()
+    email = (data.get('email') or '').strip()
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        # Don't reveal whether the email exists — security best practice
+        return jsonify({'message': 'If that email is registered, a code has been sent.'}), 200
+    # 60-second cooldown to prevent spam
+    last_sent = session.get('reset_code_sent_at')
+    if last_sent and (time.time() - last_sent) < 60:
+        remaining = int(60 - (time.time() - last_sent))
+        return jsonify({'error': f'Please wait {remaining}s before requesting another code.'}), 429
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    session['reset_code'] = code
+    session['reset_email'] = email
+    session['reset_code_sent_at'] = time.time()
+    session['reset_code_expiry'] = time.time() + 600  # 10-minute window
+    send_reset_email(email, code)
+    return jsonify({'message': 'If that email is registered, a code has been sent.'}), 200
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def api_reset_password():
+    data = request.get_json()
+    email = (data.get('email') or '').strip()
+    code = (data.get('code') or '').strip()
+    new_password = data.get('new_password', '')
+    if not all([email, code, new_password]):
+        return jsonify({'error': 'Email, code, and new password are required'}), 400
+    if time.time() > session.get('reset_code_expiry', 0):
+        return jsonify({'error': 'Code has expired. Please request a new one.'}), 400
+    if code != session.get('reset_code') or email != session.get('reset_email'):
+        return jsonify({'error': 'Invalid code. Please try again.'}), 400
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': 'Something went wrong. Please try again.'}), 400
+    user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+    db.session.commit()
+    for key in ('reset_code', 'reset_email', 'reset_code_sent_at', 'reset_code_expiry'):
+        session.pop(key, None)
+    return jsonify({'message': 'Password updated successfully.'})
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_auth_logout():
+    """Clears the Flask session, logging the user out."""
+    session.pop('username', None)
+    return jsonify({'success': True})
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_auth_register():
+    """Creates a new user account and logs them in immediately."""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    fullname = data.get('fullname', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    confirm_password = data.get('confirm_password', '')
+    timezone = data.get('timezone', 'UTC')
+
+    if not username or not fullname or not password or not email:
+        return jsonify({'error': 'All fields are required'}), 400
+    if password != confirm_password:
+        return jsonify({'error': 'Passwords do not match'}), 400
+    if timezone not in TIMEZONES:
+        return jsonify({'error': 'Invalid timezone'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Username already taken'}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already registered'}), 400
+
+    hashed = bcrypt.generate_password_hash(password).decode('utf-8')
+    new_user = User(username=username, fullname=fullname, email=email, password=hashed, timezone=timezone)
+    db.session.add(new_user)
+    db.session.commit()
+    session['username'] = new_user.username
+    return jsonify({'username': new_user.username, 'fullname': new_user.fullname}), 201
+
+@app.route('/api/timezones', methods=['GET'])
+def api_timezones():
+    """Returns all pytz timezone strings — used to populate the timezone selector in Profile/Register."""
+    return jsonify(TIMEZONES)
+
+# --- Breaks API Routes ---
+
+@app.route('/api/breaks', methods=['GET'])
+def api_get_breaks():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    breaks = BreakEntry.query.filter_by(username=session['username']).order_by(BreakEntry.start_datetime.desc()).all()
+    return jsonify([{
+        'id': b.id,
+        'start_datetime': b.start_datetime.isoformat() + 'Z',
+        'end_datetime': b.end_datetime.isoformat() + 'Z',
+    } for b in breaks])
+
+@app.route('/api/breaks', methods=['POST'])
+def api_create_break():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    try:
+        start = datetime.fromisoformat(data['start_datetime'])
+        end = datetime.fromisoformat(data['end_datetime'])
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid datetimes'}), 400
+    entry = BreakEntry(username=session['username'], start_datetime=start, end_datetime=end)
+    db.session.add(entry)
+    db.session.commit()
+    return jsonify({
+        'id': entry.id,
+        'start_datetime': entry.start_datetime.isoformat() + 'Z',
+        'end_datetime': entry.end_datetime.isoformat() + 'Z',
+    }), 201
+
+@app.route('/api/breaks/<int:break_id>', methods=['DELETE'])
+def api_delete_break(break_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    entry = BreakEntry.query.get_or_404(break_id)
+    if entry.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    db.session.delete(entry)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# --- Study Sessions API Routes ---
+
+@app.route('/api/sessions', methods=['GET'])
+def api_get_sessions():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    sessions_list = StudySession.query.filter_by(username=session['username']).order_by(StudySession.start_datetime.desc()).all()
+    return jsonify([{
+        'id': s.id,
+        'course': s.course,
+        'topic': s.topic,
+        'start_datetime': s.start_datetime.isoformat() + 'Z',
+        'end_datetime': s.end_datetime.isoformat() + 'Z',
+        'notes': s.notes,
+        'is_important': s.is_important,
+    } for s in sessions_list])
+
+@app.route('/api/sessions', methods=['POST'])
+def api_create_session():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    try:
+        start = datetime.fromisoformat(data['start_datetime'])
+        end = datetime.fromisoformat(data['end_datetime'])
+    except (KeyError, ValueError):
+        return jsonify({'error': 'Invalid datetimes'}), 400
+    s = StudySession(
+        username=session['username'],
+        course=data.get('course', ''),
+        topic=data.get('topic') or None,
+        start_datetime=start,
+        end_datetime=end,
+        notes=data.get('notes') or None,
+    )
+    db.session.add(s)
+    db.session.commit()
+    return jsonify({
+        'id': s.id, 'course': s.course, 'topic': s.topic,
+        'start_datetime': s.start_datetime.isoformat() + 'Z',
+        'end_datetime': s.end_datetime.isoformat() + 'Z',
+        'notes': s.notes, 'is_important': s.is_important,
+    }), 201
+
+@app.route('/api/sessions/<int:session_id>', methods=['DELETE'])
+def api_delete_session(session_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    s = StudySession.query.get_or_404(session_id)
+    if s.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    db.session.delete(s)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/sessions/<int:session_id>/importance', methods=['POST'])
+def api_toggle_session_importance(session_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    s = StudySession.query.get_or_404(session_id)
+    if s.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    s.is_important = not s.is_important
+    db.session.commit()
+    return jsonify({'id': s.id, 'is_important': s.is_important})
+
+# --- Notes API Routes ---
+# Notes are study sessions with hidden_from_notes=False.
+# "Deleting" a note is a soft delete — the row stays (preserving study time stats)
+# but hidden_from_notes is set True and the notes text is cleared.
+
+@app.route('/api/notes', methods=['GET'])
+def api_get_notes():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    notes_list = StudySession.query.filter_by(
+        username=session['username'],
+        hidden_from_notes=False
+    ).order_by(StudySession.start_datetime.desc()).all()
+    return jsonify([{
+        'id': n.id,
+        'course': n.course,
+        'topic': n.topic,
+        'start_datetime': n.start_datetime.isoformat() + 'Z',
+        'end_datetime': n.end_datetime.isoformat() + 'Z',
+        'notes': n.notes,
+        'is_important': n.is_important,
+    } for n in notes_list])
+
+@app.route('/api/notes/<int:session_id>/importance', methods=['POST'])
+def api_toggle_note_importance(session_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    s = StudySession.query.get_or_404(session_id)
+    if s.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    s.is_important = not s.is_important
+    db.session.commit()
+    return jsonify({'id': s.id, 'is_important': s.is_important})
+
+@app.route('/api/notes/<int:session_id>', methods=['PUT'])
+def api_edit_note(session_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    s = StudySession.query.get_or_404(session_id)
+    if s.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    data = request.get_json()
+    if 'course' in data:
+        s.course = data['course']
+    if 'topic' in data:
+        s.topic = data['topic'] or None
+    if 'notes' in data:
+        s.notes = data['notes'] or None
+    db.session.commit()
+    return jsonify({
+        'id': s.id, 'course': s.course, 'topic': s.topic,
+        'notes': s.notes, 'is_important': s.is_important,
+    })
+
+@app.route('/api/notes/<int:session_id>', methods=['DELETE'])
+def api_delete_note(session_id):
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    s = StudySession.query.get_or_404(session_id)
+    if s.username != session['username']:
+        return jsonify({'error': 'Forbidden'}), 403
+    s.hidden_from_notes = True
+    s.notes = None
+    db.session.commit()
+    return jsonify({'success': True})
+
+# --- Profile API Routes ---
+
+@app.route('/api/profile', methods=['GET'])
+def api_get_profile():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = User.query.filter_by(username=session['username']).first()
+    return jsonify({
+        'username': user.username,
+        'fullname': user.fullname,
+        'email': user.email,
+        'timezone': user.timezone,
+        'has_google': user.google_id is not None,
+        'has_password': user.password is not None,
+    })
+
+@app.route('/api/profile', methods=['PUT'])
+def api_update_profile():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = User.query.filter_by(username=session['username']).first()
+    data = request.get_json()
+
+    if data.get('fullname'):
+        user.fullname = data['fullname'].strip()
+
+    if data.get('timezone'):
+        if data['timezone'] not in TIMEZONES:
+            return jsonify({'error': 'Invalid timezone'}), 400
+        user.timezone = data['timezone']
+
+    # Email can only be added (not changed) if the account doesn't have one yet
+    if data.get('email') and not user.email:
+        existing = User.query.filter_by(email=data['email']).first()
+        if existing:
+            return jsonify({'error': 'Email already linked to another account'}), 400
+        user.email = data['email'].strip()
+
+    db.session.commit()
+    return jsonify({
+        'username': user.username,
+        'fullname': user.fullname,
+        'email': user.email,
+        'timezone': user.timezone,
+        'has_google': user.google_id is not None,
+        'has_password': user.password is not None,
+    })
+
+# --- Study Groups API Routes ---
+
+@app.route('/api/groups/me', methods=['GET'])
+def api_group_me():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    user = User.query.filter_by(username=session['username']).first()
+    if not user.group_id:
+        return jsonify({'group': None})
+    group = StudyGroup.query.get(user.group_id)
+    members = [u.username for u in User.query.filter_by(group_id=group.id).all()]
+    return jsonify({
+        'group': {
+            'id': group.id,
+            'name': group.name,
+            'join_code': group.join_code,
+            'members': members,
+        }
+    })
+
+@app.route('/api/groups/create', methods=['POST'])
+def api_create_group():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    group_name = (data.get('group_name') or '').strip()
     if not group_name:
-        flash('Group name is required! Please try again.', 'error')
-        return redirect(url_for('study_summary'))
-        
+        return jsonify({'error': 'Group name is required'}), 400
+    # Generate a unique join code
     while True:
         code = generate_join_code()
         if not StudyGroup.query.filter_by(join_code=code).first():
             break
-            
     new_group = StudyGroup(name=group_name, join_code=code)
     db.session.add(new_group)
     db.session.commit()
-    
     user = User.query.filter_by(username=session['username']).first()
     user.group_id = new_group.id
     db.session.commit()
-    
-    flash(f'Group "{group_name}" created! Your join code is {code}', 'success')
-    return redirect(url_for('study_summary'))
+    return jsonify({'name': new_group.name, 'join_code': new_group.join_code}), 201
 
-@app.route('/join_group', methods=['POST'])
-def join_group():
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-        
-    join_code = request.form.get('join_code')
+@app.route('/api/groups/join', methods=['POST'])
+def api_join_group():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    join_code = (data.get('join_code') or '').upper().strip()
     if not join_code:
-        flash('Join code is required! Please try again.', 'error')
-        return redirect(url_for('study_summary'))
-        
-    group = StudyGroup.query.filter_by(join_code=join_code.upper().strip()).first()
+        return jsonify({'error': 'Join code is required'}), 400
+    group = StudyGroup.query.filter_by(join_code=join_code).first()
     if not group:
-        flash('Invalid join code! Please try again.', 'error')
-        return redirect(url_for('study_summary'))
-        
+        return jsonify({'error': 'Invalid join code'}), 404
     user = User.query.filter_by(username=session['username']).first()
     user.group_id = group.id
     db.session.commit()
-    
-    flash(f'Successfully joined group "{group.name}"!', 'success')
-    return redirect(url_for('study_summary'))
+    return jsonify({'name': group.name, 'join_code': group.join_code})
 
-@app.route('/leave_group', methods=['POST'])
-def leave_group():
-    # Auto-deletes the group if this user is the last member
-    if session.get('username') == None:
-        return redirect(url_for('login'))
-        
+@app.route('/api/groups/leave', methods=['POST'])
+def api_leave_group():
+    # Auto-deletes the group when the last member leaves
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
     user = User.query.filter_by(username=session['username']).first()
-    
-    group_id_to_check = user.group_id
-    
+    group_id = user.group_id
     user.group_id = None
     db.session.commit()
-    
-    if group_id_to_check:
-        remaining_members = User.query.filter_by(group_id=group_id_to_check).count()
-        if remaining_members == 0:
-            group_to_delete = StudyGroup.query.get(group_id_to_check)
-            if group_to_delete:
-                db.session.delete(group_to_delete)
+    if group_id:
+        remaining = User.query.filter_by(group_id=group_id).count()
+        if remaining == 0:
+            group = StudyGroup.query.get(group_id)
+            if group:
+                db.session.delete(group)
                 db.session.commit()
-    
-    flash('You have left the group.', 'success')
-    return redirect(url_for('study_summary'))
+    return jsonify({'success': True})
 
-# --- Summary Route ---
-# Most complex route: aggregates leaderboard data, daily breakdowns, course pie chart,
-# and heatmap all in Python, then passes everything as JSON-serializable values to the template.
+# --- Calendar API Route ---
 
-@app.route('/summary')
-def study_summary():
+@app.route('/api/calendar', methods=['GET'])
+def api_calendar_data():
+    """Returns homework tasks and events formatted for FullCalendar's EventInput schema."""
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    username = session['username']
+    now = get_current_datetime(get_user_timezone(username))
+    tasks = HomeworkTask.query.filter_by(username=username).all()
+    events = Event.query.filter_by(username=username).all()
+
+    calendar_events = []
+
+    for task in tasks:
+        color = '#48bb78' if task.is_completed else ('#e53e3e' if task.due_date < now else '#f59e0b')
+        calendar_events.append({
+            'id': f'task-{task.id}',
+            'title': f"{task.course}: {task.task_name}",
+            'start': task.due_date.isoformat(),
+            'backgroundColor': color,
+            'borderColor': color,
+            'textColor': '#fff',
+            'display': 'list-item',
+            'extendedProps': {
+                'type': 'task',
+                'completed': task.is_completed,
+                'description': task.description or '',
+                'deadline': task.due_date.strftime('%B %d, %Y at %I:%M %p'),
+            }
+        })
+
+    for event in events:
+        end_dt = event.end_datetime
+        # FullCalendar treats midnight as end-of-previous-day — nudge to keep event visible
+        if end_dt.hour == 0 and end_dt.minute == 0:
+            end_dt = end_dt + timedelta(minutes=1)
+        calendar_events.append({
+            'id': f'event-{event.id}',
+            'title': event.event_name,
+            'start': event.start_datetime.isoformat(),
+            'end': end_dt.isoformat(),
+            'backgroundColor': '#48bb78' if event.is_completed else '#667eea',
+            'borderColor': '#38a169' if event.is_completed else '#5568d3',
+            'textColor': '#fff',
+            'display': 'block',
+            'extendedProps': {
+                'type': 'event',
+                'completed': event.is_completed,
+                'location': event.location or '',
+                'description': event.description or '',
+            }
+        })
+
+    return jsonify(calendar_events)
+
+# --- Summary API Route ---
+# Mirrors the /summary template route but returns pure JSON.
+# Most complex route: queries all sessions/breaks for the user (and group members),
+# aggregates by day handling midnight-spanning sessions, and computes heatmap data.
+
+@app.route('/api/summary', methods=['GET'])
+def api_summary_data():
     current_username = session.get('username')
-    
-    if current_username is None:
-        return redirect(url_for('login'))
+    if not current_username:
+        return jsonify({'error': 'Not logged in'}), 401
 
     current_user = User.query.filter_by(username=current_username).first()
     if not current_user:
-        return redirect(url_for('login'))
+        return jsonify({'error': 'User not found'}), 404
 
-    current_date = get_current_datetime(get_user_timezone(current_username))
-    if not current_user:
-        return redirect(url_for('login'))
-        
+    user_tz = get_user_timezone(current_username)
+    today = get_current_date(user_tz)
+    today_start_dt = datetime.combine(today, datetime.min.time())
+    today_end_dt = today_start_dt + timedelta(days=1)
+    week_start = today - timedelta(days=today.weekday())
+
     has_group = current_user.group_id is not None
     group_info = None
-    
+
     if has_group:
-        all_users = User.query.filter_by(group_id=current_user.group_id).all()
         group = StudyGroup.query.get(current_user.group_id)
         group_info = {'name': group.name, 'join_code': group.join_code}
+        all_users = User.query.filter_by(group_id=current_user.group_id).all()
     else:
         all_users = [current_user]
 
@@ -1113,99 +1042,52 @@ def study_summary():
         all_users.remove(current_user)
     all_users.insert(0, current_user)
 
-    today = get_current_date(get_user_timezone(current_username))
-    today_start_dt = datetime.combine(today, datetime.min.time())
-    today_end_dt = today_start_dt + timedelta(days=1)
-    week_start = today - timedelta(days=today.weekday())
-
-    # Put current user first so their bar is always at the top of leaderboard charts
-    # Friends comparison arrays — parallel lists zipped together for Chart.js bar charts
-    friend_names = []
-    friend_study_hours = []
-    friend_break_hours = []
-    friend_today_study = []
-    friend_today_break = []
+    friend_names, friend_study_hours, friend_break_hours, friend_today_study, friend_today_break = [], [], [], [], []
 
     for user in all_users:
-        # Weekly sessions for leaderboard
         user_sessions = StudySession.query.filter_by(username=user.username).filter(
             StudySession.start_datetime >= week_start
         ).all()
         user_breaks = BreakEntry.query.filter_by(username=user.username).filter(
             BreakEntry.start_datetime >= week_start
         ).all()
+        total_study_mins = sum((s.end_datetime - s.start_datetime).total_seconds() / 60.0 for s in user_sessions)
+        total_break_mins = sum((b.end_datetime - b.start_datetime).total_seconds() / 60.0 for b in user_breaks)
 
-        total_study_mins = sum(
-            (s.end_datetime - s.start_datetime).total_seconds() / 60.0
-            for s in user_sessions
-        )
-        total_break_mins = sum(
-            (b.end_datetime - b.start_datetime).total_seconds() / 60.0
-            for b in user_breaks
-        )
-
-        # Today's sessions for today graphs
         user_today_sessions = StudySession.query.filter_by(username=user.username).filter(
-            StudySession.start_datetime < today_end_dt,
-            StudySession.end_datetime >= today_start_dt
+            StudySession.start_datetime < today_end_dt, StudySession.end_datetime >= today_start_dt
         ).all()
         user_today_breaks = BreakEntry.query.filter_by(username=user.username).filter(
-            BreakEntry.start_datetime < today_end_dt,
-            BreakEntry.end_datetime >= today_start_dt
+            BreakEntry.start_datetime < today_end_dt, BreakEntry.end_datetime >= today_start_dt
         ).all()
-
-        today_study_mins = sum(
-            calculate_duration_mins(s.start_datetime, s.end_datetime, today)
-            for s in user_today_sessions
-        )
-        today_break_mins = sum(
-            calculate_duration_mins(b.start_datetime, b.end_datetime, today)
-            for b in user_today_breaks
-        )
+        today_study = sum(calculate_duration_mins(s.start_datetime, s.end_datetime, today) for s in user_today_sessions)
+        today_break = sum(calculate_duration_mins(b.start_datetime, b.end_datetime, today) for b in user_today_breaks)
 
         friend_names.append(user.fullname)
         friend_study_hours.append(round(total_study_mins / 60, 2))
         friend_break_hours.append(round(total_break_mins / 60, 2))
-        friend_today_study.append(round(today_study_mins / 60, 2))
-        friend_today_break.append(round(today_break_mins / 60, 2))
+        friend_today_study.append(round(today_study / 60, 2))
+        friend_today_break.append(round(today_break / 60, 2))
 
-    # Sort all lists together by weekly study hours
-    sorted_friends = sorted(
+    sorted_data = sorted(
         zip(friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break),
         reverse=True
     )
-    if sorted_friends:
-        friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break = map(list, zip(*sorted_friends))
-    else:
-        friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break = [], [], [], [], []
+    if sorted_data:
+        friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break = map(list, zip(*sorted_data))
 
-    # Self analytics: iterate sessions day-by-day to handle sessions that span midnight
     my_sessions = StudySession.query.filter_by(username=current_username).order_by(StudySession.start_datetime).all()
     my_breaks = BreakEntry.query.filter_by(username=current_username).order_by(BreakEntry.start_datetime).all()
 
-    # Default dictionary for hours
-    today_course_hours = defaultdict(float)
     daily_study = defaultdict(float)
     daily_break = defaultdict(float)
-    today_study_hours = 0
-    today_break_hours = 0
-    first_date = None
 
     for s in my_sessions:
         current = s.start_datetime
         while current < s.end_datetime:
             next_day = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_of_chunk = min(s.end_datetime, next_day)
-            
-            chunk_hours = (end_of_chunk - current).total_seconds() / 3600.0
-            
-            chunk_date = current.date()
-            daily_study[chunk_date] += chunk_hours
-            
-            if chunk_date == today:
-                today_course_hours[s.course] += chunk_hours
-                today_study_hours += chunk_hours
-                
+            daily_study[current.date()] += (end_of_chunk - current).total_seconds() / 3600.0
             current = end_of_chunk
 
     for b in my_breaks:
@@ -1213,17 +1095,10 @@ def study_summary():
         while current < b.end_datetime:
             next_day = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_of_chunk = min(b.end_datetime, next_day)
-            
-            chunk_hours = (end_of_chunk - current).total_seconds() / 3600.0
-            
-            chunk_date = current.date()
-            daily_break[chunk_date] += chunk_hours
-            
-            if chunk_date == today:
-                today_break_hours += chunk_hours
-                
+            daily_break[current.date()] += (end_of_chunk - current).total_seconds() / 3600.0
             current = end_of_chunk
 
+    first_date = None
     if daily_study or daily_break:
         first_date = min(list(daily_study.keys()) + list(daily_break.keys()))
         last_date = max(list(daily_study.keys()) + list(daily_break.keys()))
@@ -1232,92 +1107,190 @@ def study_summary():
         daily_study_values = [round(daily_study.get(first_date + timedelta(days=i), 0), 2) for i in range(total_days)]
         daily_break_values = [round(daily_break.get(first_date + timedelta(days=i), 0), 2) for i in range(total_days)]
     else:
-        daily_labels = []
-        daily_study_values = []
-        daily_break_values = []
+        daily_labels, daily_study_values, daily_break_values = [], [], []
 
-    # Heatmap covers at minimum the last 365 days, extended further if the user has older data
-    heatmap_all_data = []
-    
-    if first_date:
-        start_date = min(first_date, today - timedelta(days=364))
-    else:
-        start_date = today - timedelta(days=364)
-        
-    total_heatmap_days = (today - start_date).days + 1
-    
-    for i in range(total_heatmap_days):
-        d = start_date + timedelta(days=i)
-        heatmap_all_data.append({
-            'date': d.strftime('%Y-%m-%d'),
-            'hours': round(daily_study.get(d, 0), 2)
-        })
+    # Streak computation — based on days with any study time
+    current_streak = 0
+    longest_streak = 0
+    if daily_study:
+        check = today
+        while daily_study.get(check, 0) > 0:
+            current_streak += 1
+            check -= timedelta(days=1)
 
-    # Today's data — re-queried separately to use calculate_duration_mins for midnight-spanning sessions
-    today_sessions = StudySession.query.filter_by(username=current_username).filter(
-        StudySession.start_datetime < today_end_dt,
-        StudySession.end_datetime >= today_start_dt
-    ).all()
-    today_breaks = BreakEntry.query.filter_by(username=current_username).filter(
-        BreakEntry.start_datetime < today_end_dt,
-        BreakEntry.end_datetime >= today_start_dt
-    ).all()
+        run = 0
+        scan = min(daily_study.keys())
+        while scan <= today:
+            if daily_study.get(scan, 0) > 0:
+                run += 1
+                if run > longest_streak:
+                    longest_streak = run
+            else:
+                run = 0
+            scan += timedelta(days=1)
 
-    # Course breakdown (minutes per course)
-    course_totals = {}
+    # Extend heatmap back to Jan 1 of the first year with data so the frontend
+    # can filter by full calendar year (not just rolling 365 days)
+    heatmap_start = first_date.replace(month=1, day=1) if first_date else today.replace(month=1, day=1)
+    total_heatmap_days = (today - heatmap_start).days + 1
+    heatmap_data = [
+        {'date': (heatmap_start + timedelta(days=i)).strftime('%Y-%m-%d'),
+         'hours': round(daily_study.get(heatmap_start + timedelta(days=i), 0), 2)}
+        for i in range(total_heatmap_days)
+    ]
+
+    course_totals = defaultdict(float)
     for s in my_sessions:
-        mins = (s.end_datetime - s.start_datetime).total_seconds() / 60.0
-        course_totals[s.course] = course_totals.get(s.course, 0) + mins
+        course_totals[s.course] += (s.end_datetime - s.start_datetime).total_seconds() / 60.0
 
-    course_labels = list(course_totals.keys())
-    course_hours = [round(m / 60, 2) for m in course_totals.values()]
+    today_sessions_q = StudySession.query.filter_by(username=current_username).filter(
+        StudySession.start_datetime < today_end_dt, StudySession.end_datetime >= today_start_dt
+    ).all()
+    today_breaks_q = BreakEntry.query.filter_by(username=current_username).filter(
+        BreakEntry.start_datetime < today_end_dt, BreakEntry.end_datetime >= today_start_dt
+    ).all()
+    today_course_totals = defaultdict(float)
+    for s in today_sessions_q:
+        today_course_totals[s.course] += calculate_duration_mins(s.start_datetime, s.end_datetime, today)
+    today_study_mins = sum(calculate_duration_mins(s.start_datetime, s.end_datetime, today) for s in today_sessions_q)
+    today_break_mins = sum(calculate_duration_mins(b.start_datetime, b.end_datetime, today) for b in today_breaks_q)
 
-    today_course_totals = {}
-    for s in today_sessions:
-        mins = calculate_duration_mins(s.start_datetime, s.end_datetime, today)
-        today_course_totals[s.course] = today_course_totals.get(s.course, 0) + mins
+    return jsonify({
+        'current_username': current_username,
+        'current_fullname': current_user.fullname,
+        'has_group': has_group,
+        'group_info': group_info,
+        'friend_names': friend_names,
+        'friend_study_hours': friend_study_hours,
+        'friend_break_hours': friend_break_hours,
+        'friend_today_study': friend_today_study,
+        'friend_today_break': friend_today_break,
+        'course_labels': list(course_totals.keys()),
+        'course_hours': [round(m / 60, 2) for m in course_totals.values()],
+        'daily_labels': daily_labels,
+        'daily_study_values': daily_study_values,
+        'daily_break_values': daily_break_values,
+        'today_course_labels': list(today_course_totals.keys()),
+        'today_course_hours': [round(m / 60, 2) for m in today_course_totals.values()],
+        'today_study_hours': round(today_study_mins / 60, 2),
+        'today_break_hours': round(today_break_mins / 60, 2),
+        'heatmap_data': heatmap_data,
+        'current_streak': current_streak,
+        'longest_streak': longest_streak,
+    })
 
-    today_course_labels = list(today_course_totals.keys())
-    today_course_hours = [round(m / 60, 2) for m in today_course_totals.values()]
+# --- AI Parse Route ---
+# Sends raw text to Gemini and returns structured tasks/events for the Import page.
+# The frontend shows these as editable cards before the user confirms creation.
 
-    today_study_mins = sum(
-        calculate_duration_mins(s.start_datetime, s.end_datetime, today)
-        for s in today_sessions
-    )
-    today_break_mins = sum(
-        calculate_duration_mins(b.start_datetime, b.end_datetime, today)
-        for b in today_breaks
-    )
-    today_study_hours = round(today_study_mins / 60, 2)
-    today_break_hours = round(today_break_mins / 60, 2)
+@app.route('/api/parse', methods=['POST'])
+def api_parse():
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
 
-    return render_template('study_summary.html',
-        current_date=current_date,
-        current_username=current_username,
-        current_fullname=current_user.fullname if current_user else '',
-        week_start=week_start,
-        has_group=has_group,
-        group_info=group_info,
-        # Friends chart
-        friend_names=friend_names,
-        friend_study_hours=friend_study_hours,
-        friend_break_hours=friend_break_hours,
-        friend_today_study=friend_today_study,
-        friend_today_break=friend_today_break,
-        # Self chart
-        course_labels=course_labels,
-        course_hours=course_hours,
-        daily_labels=daily_labels,
-        daily_study_values=daily_study_values,
-        daily_break_values=daily_break_values,
-        # Today's chart
-        today_course_labels=today_course_labels,
-        today_course_hours=today_course_hours,
-        today_study_hours=today_study_hours,
-        today_break_hours=today_break_hours,
-        # Heatmap
-        heatmap_all_data=heatmap_all_data,
-    )
+    data = request.get_json()
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+    if len(text) > 20000:
+        return jsonify({'error': 'Input too long — maximum 20000 characters.'}), 400
+
+    username = session['username']
+    user = User.query.filter_by(username=username).first()
+    today_date = get_current_date(get_user_timezone(username))
+
+    # Reset counter if it's a new day (in the user's local timezone)
+    if user.parse_date != today_date:
+        user.parse_count = 0
+        user.parse_date  = today_date
+
+    if user.parse_count >= 1:
+        return jsonify({'error': 'Daily limit reached — you can use Import once per day.'}), 429
+
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'GEMINI_API_KEY not set in app.env'}), 500
+
+    today = get_current_datetime(get_user_timezone(username))
+    today_str = today.strftime('%A, %B %d, %Y')
+
+    prompt = f"""Today is {today_str}.
+
+Extract all homework tasks and calendar events from the text below.
+Return a JSON object with an "items" array.
+
+Each item must have:
+  "type": "task" or "event"
+
+For a task (assignment, quiz, exam due date, homework):
+  "type": "task"
+  "course": string (course code or name, e.g. "COMP 101") — use null if unknown
+  "task_name": string
+  "description": string or null
+  "due_date": ISO 8601 datetime string or null (e.g. "2026-09-15T23:59:00") — if no time given, use 23:59:00
+
+For an event (lecture, lab, meeting, exam at a specific time):
+  "type": "event"
+  "event_name": string
+  "start_datetime": ISO 8601 datetime string or null — FIRST occurrence only
+  "end_datetime": ISO 8601 datetime string or null (if duration not given, assume 1 hour after start) — FIRST occurrence only
+  "location": string or null
+  "description": string or null
+  "recurrence": object or null — include ONLY for recurring events:
+    "days": array of day abbreviations the event repeats on, e.g. ["Tue", "Thu"] (use Mon/Tue/Wed/Thu/Fri/Sat/Sun)
+    "until": ISO date string YYYY-MM-DD — last date of the recurrence range
+
+Rules:
+- If year is not specified, assume {today.year} or {today.year + 1} based on context (e.g. a date that has already passed this year → next year).
+- Recurring events: set start_datetime/end_datetime to the FIRST occurrence only, and populate "recurrence". Do NOT generate multiple items for recurring events.
+- Non-recurring events: omit "recurrence" entirely (or set to null).
+- If something could be either type, make your best guess.
+- Keep description fields SHORT (under 100 characters). Omit redundant or low-value details.
+- Omit null fields entirely rather than including them as null.
+
+Text:
+{text}"""
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model='gemini-3.5-flash',
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                response_mime_type='application/json',
+                max_output_tokens=8192,
+            ),
+        )
+        import json
+        raw = response.text.strip()
+
+        # Strip markdown fences in case Gemini wraps the JSON anyway
+        if raw.startswith('```'):
+            raw = raw.split('\n', 1)[1] if '\n' in raw else raw[3:]
+        if raw.endswith('```'):
+            raw = raw.rsplit('```', 1)[0]
+
+        try:
+            parsed = json.loads(raw.strip())
+        except json.JSONDecodeError as je:
+            # Include a snippet of what Gemini returned to help debug
+            preview = raw[:300].replace('\n', ' ')
+            return jsonify({'error': f'Gemini returned invalid JSON: {je}. Response preview: {preview}'}), 500
+
+        items = parsed.get('items', [])
+
+        # Validate basic shape — each item must have a type
+        valid = [item for item in items if item.get('type') in ('task', 'event')]
+
+        # Only count against the limit on a successful parse
+        user.parse_count += 1
+        db.session.commit()
+
+        return jsonify({'items': valid})
+
+    except Exception as e:
+        return jsonify({'error': f'Parse failed: {str(e)}'}), 500
+
 
 # --- Entry Point ---
 if __name__ == '__main__':
