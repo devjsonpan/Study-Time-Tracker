@@ -12,6 +12,7 @@ from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
 from flask_session import Session
+from flask_socketio import SocketIO, join_room, emit
 from dotenv import load_dotenv
 import os
 import re
@@ -43,6 +44,7 @@ Session(app)
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 migrate = Migrate(app, db)
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
 
 # --- Models ---
 
@@ -152,7 +154,6 @@ class HomeworkTask(db.Model):
     is_completed = db.Column(db.Boolean, default=False, nullable=False)
     is_important = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=get_current_datetime)
-
 
 class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1292,6 +1293,204 @@ Text:
         return jsonify({'error': f'Parse failed: {str(e)}'}), 500
 
 
-# --- Entry Point ---
+# --- Chat Routes ---
+# Friends: list accepted friends and pending requests, send/accept/decline requests
+@app.route('/api/friends', methods=['GET'])
+def api_get_friends():
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    accepted = Friendship.query.filter(
+        ((Friendship.sender == username) | (Friendship.receiver == username)),
+        Friendship.status == 'accepted'
+    ).all()
+    
+    pending = Friendship.query.filter(
+        Friendship.receiver == username,
+        Friendship.status == 'pending'
+    ).all()
+    
+    def friend_name(f):
+        return f.receiver if f.sender == username else f.sender
+    
+    return jsonify({
+        'friends': [{'id': f.id, 'username': friend_name(f)} for f in accepted],
+        'pending': [{'id': f.id, 'from': f.sender} for f in pending],
+    })
+
+@app.route('/api/friends/request', methods=['POST'])
+def api_send_friend_request():
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    data = request.get_json()
+    target = data.get('username', '').strip()
+    if not target or target == username:
+        return jsonify({'error': 'Invalid target'}), 400
+    
+    if not User.query.filter_by(username=target).first():
+        return jsonify({'error': 'User not found'}), 404
+    
+    existing = Friendship.query.filter(
+        ((Friendship.sender == username) & (Friendship.receiver == target)) |
+        ((Friendship.sender == target) & (Friendship.receiver == username))
+    ).first()
+    if existing:
+        return jsonify({'error': 'Request already exists'}), 409
+    
+    f = Friendship(sender=username, receiver=target, status='pending')
+    db.session.add(f)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/friends/<int:friendship_id>/accept', methods=['POST'])
+def api_accept_friend(friendship_id):
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    f = Friendship.query.get_or_404(friendship_id)
+    if f.receiver != username:
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    f.status = 'accepted'
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/friends/<int:friendship_id>/decline', methods=['POST'])
+def api_decline_friend(friendship_id):
+    username = session.get('username')
+    if not username: 
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    f = Friendship.query.get_or_404(friendship_id)
+    if f.sender != username and f.receiver != username:
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    db.session.delete(f)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/conversations', methods=['GET'])
+def api_get_conversations():
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    # filter_by handles simple equality; filter() is needed for OR/AND/IN logic
+    memberships = ConversationMember.query.filter_by(username=username).all()
+    conv_ids = [m.conversation_id for m in memberships]
+    # .in_() is SQLAlchemy's WHERE id IN (...) — can't do this with filter_by
+    conversations = Conversation.query.filter(Conversation.id.in_(conv_ids)).all()
+    
+    result = []
+    for conv in conversations:
+        members = ConversationMember.query.filter_by(conversation_id=conv.id).all()
+        other_names = [m.username for m in members if m.username != username]
+        name = other_names[0] if conv.type == 'dm' and other_names else f'Group {conv.id}'
+        result.append({'id': conv.id, 'type': conv.type, 'name': name})
+    
+    return jsonify({'conversations': result})
+
+@app.route('/api/conversations/dm', methods=['POST'])
+def api_open_dm():
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    data = request.get_json()
+    target = data.get('username', '').strip()
+    if not target or target == username:
+        return jsonify({'error': 'Invalid target'}), 400
+    
+    my_convs = {m.conversation_id for m in ConversationMember.query.filter_by(username=username).all()}
+    their_convs = {m.conversation_id for m in ConversationMember.query.filter_by(username=target).all()}
+    shared = my_convs & their_convs
+    for conv_id in shared:
+        conv = Conversation.query.get(conv_id)
+        if conv and conv.type == 'dm':
+            return jsonify({'id': conv.id})
+        
+    conv = Conversation(type='dm')
+    db.session.add(conv)
+    # flush() sends SQL to DB so conv.id is assigned, but doesn't commit yet —
+    # lets us create the members in the same atomic transaction
+    db.session.flush()
+    db.session.add(ConversationMember(conversation_id=conv.id, username=username))
+    db.session.add(ConversationMember(conversation_id=conv.id, username=target))
+    db.session.commit()  # conversation + both members save together or not at all
+    return jsonify({'id': conv.id}), 201
+
+@app.route('/api/conversations/<int:conv_id>/messages', methods=['GET'])
+def api_get_messages(conv_id):
+    username = session.get('username')
+    if not username:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    # .first() returns one row or None — use it when you only need existence, not a list
+    member = ConversationMember.query.filter_by(conversation_id=conv_id, username=username).first()
+    if not member:
+        # security: block anyone who isn't actually in this conversation
+        return jsonify({'error': 'Forbidden'}), 403
+
+    msgs = Message.query.filter_by(conversation_id=conv_id).order_by(Message.created_at.asc()).all()
+    return jsonify({'messages': [
+        {
+            'id': m.id,
+            'sender': m.sender,
+            'content': m.content,
+            # 'Z' suffix tells the browser this is UTC so it converts to the user's local time
+            'created_at': m.created_at.isoformat() + 'Z',
+        }
+        for m in msgs
+    ]})
+    
+# --- SocketIO Events ---
+# join: subscribe the user's connection to a conversation room
+# send_message: persist the message and broadcast it to everyone in the room
+@socketio.on('join')
+def on_join(data):
+    username = session.get('username')
+    if not username:
+        return
+    
+    conv_id = data.get('conv_id')
+    member = ConversationMember.query.filter_by(conversation_id=conv_id, username=username).first()
+    if not member:
+        return
+    
+    # subscribes this user's socket connection to the room — they'll receive any emit() to it
+    join_room(str(conv_id))
+
+@socketio.on('send_message')
+def on_send_message(data):
+    username = session.get('username')
+    if not username:
+        return
+
+    conv_id = data.get('conv_id')
+    content = (data.get('content') or '').strip()
+    if not content:
+        return
+
+    member = ConversationMember.query.filter_by(conversation_id=conv_id, username=username).first()
+    if not member:
+        return
+
+    msg = Message(conversation_id=conv_id, sender=username, content=content)
+    db.session.add(msg)
+    db.session.commit()
+
+    # emit() broadcasts the event to every socket in the room — both users see the message instantly
+    emit('new_message', {
+        'id': msg.id,
+        'conv_id': conv_id,
+        'sender': msg.sender,
+        'content': msg.content,
+        'created_at': msg.created_at.isoformat() + 'Z',
+    }, room=str(conv_id))
+    
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)
