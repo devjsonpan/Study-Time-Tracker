@@ -5,14 +5,12 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { getProfile, updateProfile, getTimezones } from '../api/profile'
-import { getMyGroup, createGroup, joinGroup, leaveGroup } from '../api/groups'
 import { getTheme } from '../lib/themes'
 
 export default function Profile() {
   const queryClient = useQueryClient()
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [groupError, setGroupError] = useState<string | null>(null)
 
   const { pathname } = useLocation()
   const theme = getTheme(pathname)
@@ -29,34 +27,6 @@ export default function Profile() {
     staleTime: Infinity,
   })
 
-  const { data: groupData, isLoading: groupLoading } = useQuery({
-    queryKey: ['group'],
-    queryFn: getMyGroup,
-  })
-
-  const createMutation = useMutation({
-    mutationFn: createGroup,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['group'] })
-      setGroupError(null)
-    },
-    onError: (err: Error) => setGroupError(err.message),
-  })
-
-  const joinMutation = useMutation({
-    mutationFn: joinGroup,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['group'] })
-      setGroupError(null)
-    },
-    onError: (err: Error) => setGroupError(err.message),
-  })
-
-  const leaveMutation = useMutation({
-    mutationFn: leaveGroup,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['group'] }),
-  })
-
   const updateMutation = useMutation({
     mutationFn: updateProfile,
     onSuccess: () => {
@@ -70,6 +40,12 @@ export default function Profile() {
       setError(err.message)
       setSuccess(false)
     },
+  })
+
+  // Reminder toggle auto-saves on change — no submit button needed
+  const reminderMutation = useMutation({
+    mutationFn: updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['profile'] }),
   })
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
@@ -107,90 +83,33 @@ export default function Profile() {
         <p className="text-sm text-slate-400 mt-1 font-medium">@{profile.username}</p>
       </div>
 
-      {/* Study Group section */}
+      {/* Email Reminders card */}
       <div className="shadow-sm p-6 mb-5" style={cardStyle}>
         <h2 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: theme.accent }}>
-          Study Group
+          Email Reminders
         </h2>
 
-        {groupLoading ? (
-          <p className="text-sm text-slate-400 animate-pulse">Loading…</p>
-        ) : groupData ? (
-          /* Already in a group — show info + leave button */
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-bold text-slate-800">{groupData.name}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Join code: <code className="font-mono font-bold tracking-widest">{groupData.join_code}</code>
-                </p>
-              </div>
-              <button
-                onClick={() => leaveMutation.mutate()}
-                disabled={leaveMutation.isPending}
-                className="px-3 py-1.5 text-xs font-bold text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 cursor-pointer transition-colors disabled:opacity-50"
-              >
-                {leaveMutation.isPending ? 'Leaving…' : 'Leave group'}
-              </button>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 text-slate-400">Members</p>
-              <div className="flex flex-wrap gap-2">
-                {groupData.members.map(m => (
-                  <span key={m} className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{ background: theme.activeBg, color: theme.accent }}>
-                    @{m}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Not in a group — show create + join forms */
-          <div className="space-y-4">
-            {groupError && (
-              <p className="text-sm font-semibold text-rose-500 bg-rose-50 px-3 py-2 rounded-xl">{groupError}</p>
+        {/* Toggle row — clicking the label or the checkbox both work */}
+        <label className="flex items-center justify-between cursor-pointer select-none">
+          <div>
+            <span className="text-sm font-semibold text-slate-700">Remind me 1 hour before deadlines</span>
+            {!profile.email && (
+              <p className="text-xs text-slate-400 mt-0.5">Requires an email address.</p>
             )}
-
-            {/* Create a new group */}
-            <form onSubmit={e => {
-              e.preventDefault()
-              const fd = new FormData(e.currentTarget)
-              createMutation.mutate(fd.get('group_name') as string)
-              ;(e.currentTarget as HTMLFormElement).reset()
-            }} className="flex gap-2">
-              <input name="group_name" placeholder="Group name" required
-                className={`flex-1 ${inputCls}`} style={{ borderColor: theme.border }} />
-              <button type="submit" disabled={createMutation.isPending}
-                className="btn-primary px-4 py-2 text-white font-bold rounded-xl text-sm cursor-pointer shrink-0"
-                style={{ background: theme.accent }}>
-                {createMutation.isPending ? '…' : 'Create'}
-              </button>
-            </form>
-
-            <div className="flex items-center gap-2" style={{ color: theme.border }}>
-              <div className="flex-1 h-px" style={{ background: theme.border, opacity: 0.4 }} />
-              <span className="text-xs font-bold" style={{ color: theme.accent, opacity: 0.5 }}>or</span>
-              <div className="flex-1 h-px" style={{ background: theme.border, opacity: 0.4 }} />
-            </div>
-
-            {/* Join an existing group */}
-            <form onSubmit={e => {
-              e.preventDefault()
-              const fd = new FormData(e.currentTarget)
-              joinMutation.mutate(fd.get('join_code') as string)
-              ;(e.currentTarget as HTMLFormElement).reset()
-            }} className="flex gap-2">
-              <input name="join_code" placeholder="Join code (e.g. AB12CD)" required
-                className={`flex-1 ${inputCls} font-mono uppercase`} style={{ borderColor: theme.border }} />
-              <button type="submit" disabled={joinMutation.isPending}
-                className="btn-secondary px-4 py-2 font-bold rounded-xl text-sm cursor-pointer shrink-0"
-                style={{ background: theme.activeBg, color: theme.accent }}>
-                {joinMutation.isPending ? '…' : 'Join'}
-              </button>
-            </form>
           </div>
-        )}
+          <div className="relative shrink-0 ml-4">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={profile.email_reminders}
+              disabled={!profile.email || reminderMutation.isPending}
+              onChange={e => reminderMutation.mutate({ email_reminders: e.target.checked })}
+            />
+            {/* Custom toggle pill — sr-only checkbox is the real control for accessibility */}
+            <div className={`w-10 h-5 rounded-full transition-colors ${profile.email_reminders ? 'bg-violet-500' : 'bg-slate-200'}`} />
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${profile.email_reminders ? 'translate-x-5' : ''}`} />
+          </div>
+        </label>
       </div>
 
       {/* Profile form */}

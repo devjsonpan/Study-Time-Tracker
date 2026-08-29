@@ -5,6 +5,7 @@ export type GroupInfo = {
   name: string
   join_code: string
   members: string[]
+  conv_id: number
 }
 
 // Safely parse JSON — returns null if the response is HTML (e.g. a Flask error page)

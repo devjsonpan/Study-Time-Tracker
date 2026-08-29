@@ -7,6 +7,7 @@ export type UserProfile = {
   timezone: string
   has_google: boolean
   has_password: boolean
+  email_reminders: boolean
 }
 
 export async function getProfile(): Promise<UserProfile> {
@@ -19,6 +20,7 @@ export async function updateProfile(data: {
   fullname?: string
   timezone?: string
   email?: string
+  email_reminders?: boolean
 }): Promise<UserProfile> {
   const res = await fetch('/api/profile', {
     method: 'PUT',

@@ -7,10 +7,11 @@ import { useEffect } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Home, BookOpen, CalendarDays, BookOpenCheck, LayoutDashboard, Sparkles, User, LogOut,
+  Home, BookOpen, CalendarDays, BookOpenCheck, LayoutDashboard, Sparkles, MessageCircle, User, LogOut,
 } from 'lucide-react'
 import { getMe, logout } from '../api/auth'
 import { getTheme } from '../lib/themes'
+import { socket } from '../lib/socket'
 
 const NAV_ITEMS = [
   { to: '/home',     label: 'Home',     icon: Home },
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/study',    label: 'Study',    icon: BookOpenCheck },
   { to: '/overview', label: 'Overview', icon: LayoutDashboard },
   { to: '/import',   label: 'Import',   icon: Sparkles },
+  { to: '/chat',     label: 'Chat',     icon: MessageCircle },
 ]
 
 export default function Layout() {
@@ -38,6 +40,7 @@ export default function Layout() {
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
+      socket.disconnect()
       queryClient.clear()
       navigate('/login', { replace: true })
     },
@@ -56,73 +59,53 @@ export default function Layout() {
   if (!user) return null
 
   return (
-    <div className="flex min-h-screen" style={{ background: theme.bg }}>
+    <div className="flex flex-col" style={{ height: '100vh', background: theme.bg }}>
 
-      {/* Fixed sidebar — white, with border + accent colors from the active page theme */}
-      <aside
-        className="w-56 shrink-0 flex flex-col fixed top-0 left-0 h-full z-20 bg-white"
-        style={{ borderRight: `1px solid ${theme.border}` }}
+      {/* Fixed navbar — white, with border + accent colors from the active page theme */}
+      <nav
+        className="flex items-center shrink-0 px-5 gap-1"
+        style={{ height: '48px', borderBottom: `1px solid ${theme.border}`, background: theme.bg, position: 'sticky', top: 0, zIndex: 10 }}
       >
-        {/* Brand + username */}
-        <div className="px-5 py-5" style={{ borderBottom: `1px solid ${theme.border}` }}>
-          <h1
-            className="text-base font-extrabold tracking-tight"
-            style={{ color: theme.accent }}
-          >
-            LockNIn
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">
-            {user.fullname}
-          </p>
-        </div>
-
-        {/* Navigation — active item uses the current page's pastel */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-              style={({ isActive }) =>
-                isActive
-                  ? { background: theme.activeBg, color: theme.accent }
-                  : { color: '#94A3B8' }
-              }
-            >
-              <Icon size={16} strokeWidth={2} />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Profile + logout */}
-        <div className="px-3 py-4 space-y-0.5" style={{ borderTop: `1px solid ${theme.border}` }}>
+        <span className="text-sm font-extrabold mr-6 tracking-tight" style={{ color: theme.accent }}>
+          LockNIn
+        </span>
+        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
           <NavLink
-            to="/profile"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+            key={to}
+            to={to}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
             style={({ isActive }) =>
-              isActive
-                ? { background: theme.activeBg, color: theme.accent }
-                : { color: '#94A3B8' }
+              isActive ? { background: theme.activeBg, color: theme.accent } : { color: '#94A3B8' }
             }
           >
-            <User size={16} strokeWidth={2} />
-            Profile
+            <Icon size={14} strokeWidth={2} />
+            {label}
           </NavLink>
-          <button
-            onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer hover:bg-rose-50"
-            style={{ color: '#FECDD3' }}
-          >
-            <LogOut size={16} strokeWidth={2} />
-            {logoutMutation.isPending ? 'Logging out…' : 'Logout'}
-          </button>
-        </div>
-      </aside>
+        ))}
+        <div className="flex-1" />
+        <NavLink
+          to="/profile"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+          style={({ isActive }) =>
+            isActive ? { background: theme.activeBg, color: theme.accent } : { color: '#94A3B8' }
+          }
+        >
+          <User size={14} strokeWidth={2} />
+          {user.fullname}
+        </NavLink>
+        <button
+          onClick={() => logoutMutation.mutate()}
+          disabled={logoutMutation.isPending}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer hover:bg-rose-50"
+          style={{ color: '#FECDD3' }}
+        >
+          <LogOut size={14} strokeWidth={2} />
+          {logoutMutation.isPending ? 'Logging out…' : 'Logout'}
+        </button>
+      </nav>
 
       {/* Main content — offset by sidebar width */}
-      <main className="flex-1 ml-56 min-h-screen">
+      <main className="flex-1 min-h-0 flex flex-col overflow-y-auto">
         <Outlet />
       </main>
     </div>

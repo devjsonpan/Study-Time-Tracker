@@ -21,6 +21,11 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: false,
       },
+      '/socket.io': {
+        target: 'http://localhost:5000',
+        changeOrigin: false,
+        ws: true,   // ← enables WebSocket proxying, not just HTTP
+      }
     },
   },
 })

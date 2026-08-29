@@ -4,9 +4,9 @@
 /* Tailwind v4 */
 @import "tailwindcss";
 
-/* Reserve scrollbar gutter so centered content doesn't jump when the scrollbar appears/disappears */
-html {
-  scrollbar-gutter: stable;
+html, body {
+  overflow: hidden;
+  height: 100%;
 }
 
 body {

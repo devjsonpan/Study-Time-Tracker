@@ -18,6 +18,7 @@ const THEMES: Record<string, PageTheme> = {
   '/overview': { bg: '#EEF4FF', border: '#96B9FF', accent: '#1E40AF', activeBg: '#DBE8FF' },
   '/import':   { bg: '#F0FEFE', border: '#A6F0F5', accent: '#0E7490', activeBg: '#D9FAFC' },
   '/profile':  { bg: '#FDF5FF', border: '#F6C7FF', accent: '#7E22CE', activeBg: '#F9EEFF' },
+  '/chat':     { bg: '#F3F0FF', border: '#A7A1FF', accent: '#4C1D95', activeBg: '#E4E0FF' },
 }
 
 const FALLBACK: PageTheme = THEMES['/home']

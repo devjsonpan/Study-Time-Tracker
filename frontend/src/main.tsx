@@ -18,6 +18,7 @@ import Events   from './pages/Events'
 import Study    from './pages/Study'
 import Overview from './pages/Overview'
 import Import   from './pages/Import'
+import Chat     from './pages/chat'
 import Profile  from './pages/Profile'
 
 // createBrowserRouter (data router) is required for useBlocker to work.
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
       { path: '/study',    element: <Study /> },
       { path: '/overview', element: <Overview /> },
       { path: '/import',   element: <Import /> },
+      { path: '/chat',     element: <Chat /> },
       { path: '/profile',  element: <Profile /> },
 
       // Legacy route redirects
