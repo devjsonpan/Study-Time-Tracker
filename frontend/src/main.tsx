@@ -18,17 +18,19 @@ import Events   from './pages/Events'
 import Study    from './pages/Study'
 import Overview from './pages/Overview'
 import Import   from './pages/Import'
-import Chat     from './pages/chat'
-import Profile  from './pages/Profile'
+import Chat          from './pages/chat'
+import Profile       from './pages/Profile'
+import PublicProfile from './pages/PublicProfile'
 
 // createBrowserRouter (data router) is required for useBlocker to work.
 // BrowserRouter does not support the navigation blocking API.
 const router = createBrowserRouter([
   // Public routes — no sidebar
-  { path: '/practice',      element: <TimerPractice /> },
-  { path: '/login',         element: <Login /> },
-  { path: '/register',      element: <Register /> },
-  { path: '/auth/callback', element: <AuthCallback /> },
+  { path: '/practice',        element: <TimerPractice /> },
+  { path: '/login',           element: <Login /> },
+  { path: '/register',        element: <Register /> },
+  { path: '/auth/callback',   element: <AuthCallback /> },
+  { path: '/user/:username',  element: <PublicProfile /> },
 
   // Protected routes — wrapped in Layout (sidebar + auth guard)
   {
