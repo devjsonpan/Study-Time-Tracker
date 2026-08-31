@@ -494,6 +494,114 @@ def api_auth_logout():
     session.pop('username', None)
     return jsonify({'success': True})
 
+@app.route('/api/auth/delete-account', methods=['DELETE'])
+def api_delete_account():
+    """Permanently deletes the logged-in user's account and all their data.
+    Deletes every row across all tables that references the username, then removes the User row."""
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    username = session['username']
+    user     = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    # Cancel all pending reminder jobs before wiping DB rows
+    for task in HomeworkTask.query.filter_by(username=username, is_completed=False).all():
+        cancel_reminder(task.id, 'homework')
+    for event in Event.query.filter_by(username=username, is_completed=False).all():
+        cancel_reminder(event.id, 'event')
+
+    # Delete all user data across every table
+    StudySession.query.filter_by(username=username).delete()
+    BreakEntry.query.filter_by(username=username).delete()
+    HomeworkTask.query.filter_by(username=username).delete()
+    Event.query.filter_by(username=username).delete()
+    Message.query.filter_by(sender=username).delete()
+    ConversationMember.query.filter_by(username=username).delete()
+    Friendship.query.filter_by(sender=username).delete()
+    Friendship.query.filter_by(receiver=username).delete()
+
+    # If user was last member of a group, clean up the group + its conversation
+    if user.group_id:
+        remaining = User.query.filter_by(group_id=user.group_id).filter(User.username != username).count()
+        if remaining == 0:
+            group_conv = Conversation.query.filter_by(type='group', group_id=user.group_id).first()
+            if group_conv:
+                ConversationMember.query.filter_by(conversation_id=group_conv.id).delete()
+                Message.query.filter_by(conversation_id=group_conv.id).delete()
+                db.session.delete(group_conv)
+            db.session.delete(StudyGroup.query.get(user.group_id))
+
+    db.session.delete(user)
+    db.session.commit()
+    session.pop('username', None)
+    return jsonify({'success': True})
+
+@app.route('/api/auth/change-username', methods=['PUT'])
+def api_change_username():
+    """Changes the logged-in user's username.
+    Because username is denormalized across many tables (plain string FK, no real FK constraint),
+    this route bulk-updates every table in a single transaction before committing."""
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    data         = request.get_json()
+    new_username = (data.get('username') or '').strip()
+    old_username = session['username']
+
+    if not new_username:
+        return jsonify({'error': 'Username is required'}), 400
+    if len(new_username) > 30:
+        return jsonify({'error': 'Username must be 30 characters or fewer'}), 400
+    if not re.match(r'^[a-zA-Z0-9_]+$', new_username):
+        return jsonify({'error': 'Username can only contain letters, numbers, and underscores'}), 400
+    if new_username == old_username:
+        return jsonify({'error': 'That is already your username'}), 400
+    if User.query.filter_by(username=new_username).first():
+        return jsonify({'error': 'Username already taken'}), 400
+
+    # Cascade the update across every table that stores username as a plain string
+    User.query.filter_by(username=old_username).update({'username': new_username})
+    StudySession.query.filter_by(username=old_username).update({'username': new_username})
+    HomeworkTask.query.filter_by(username=old_username).update({'username': new_username})
+    Event.query.filter_by(username=old_username).update({'username': new_username})
+    BreakEntry.query.filter_by(username=old_username).update({'username': new_username})
+    ConversationMember.query.filter_by(username=old_username).update({'username': new_username})
+    Message.query.filter_by(sender=old_username).update({'sender': new_username})
+    Friendship.query.filter_by(sender=old_username).update({'sender': new_username})
+    Friendship.query.filter_by(receiver=old_username).update({'receiver': new_username})
+
+    db.session.commit()
+    session['username'] = new_username
+    return jsonify({'username': new_username})
+
+@app.route('/api/auth/set-password', methods=['PUT'])
+def api_set_password():
+    """Lets a Google-only user add a password to their account.
+    Blocked if the account already has a password — use forgot-password to change an existing one."""
+    if session.get('username') is None:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    user = User.query.filter_by(username=session['username']).first()
+    if user.password:
+        return jsonify({'error': 'Account already has a password. Use forgot-password to change it.'}), 400
+
+    data     = request.get_json()
+    password = data.get('password', '')
+    confirm  = data.get('confirm_password', '')
+
+    if not password:
+        return jsonify({'error': 'Password is required'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    if password != confirm:
+        return jsonify({'error': 'Passwords do not match'}), 400
+
+    user.password = bcrypt.generate_password_hash(password).decode('utf-8')
+    db.session.commit()
+    return jsonify({'has_password': True})
+
 @app.route('/api/timezones', methods=['GET'])
 def api_timezones():
     """Returns all pytz timezone strings — populates the timezone selector in Profile and Register."""
@@ -1012,6 +1120,31 @@ def api_update_profile():
         'email_reminders': user.email_reminders,
     })
 
+@app.route('/api/user/<username>', methods=['GET'])
+def api_public_profile(username):
+    """Public profile — no auth required. Returns basic stats for any user by username."""
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    sessions      = StudySession.query.filter_by(username=username).all()
+    total_minutes = sum(
+        int((s.end_datetime - s.start_datetime).total_seconds() / 60)
+        for s in sessions
+    )
+    group_name = None
+    if user.group_id:
+        group = StudyGroup.query.get(user.group_id)
+        group_name = group.name if group else None
+
+    return jsonify({
+        'username':       user.username,
+        'fullname':       user.fullname,
+        'total_sessions': len(sessions),
+        'total_hours':    round(total_minutes / 60, 1),
+        'group_name':     group_name,
+    })
+
 # =============================================================================
 # Study Groups API Routes
 # =============================================================================
@@ -1203,6 +1336,7 @@ def api_calendar_data():
             }
         })
 
+    calendar_events.sort(key=lambda e: e['start'])
     return jsonify(calendar_events)
 
 # =============================================================================
