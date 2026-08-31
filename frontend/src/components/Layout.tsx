@@ -24,11 +24,10 @@ const NAV_ITEMS = [
 ]
 
 export default function Layout() {
-  const navigate   = useNavigate()
-  const location   = useLocation()
+  const navigate    = useNavigate()
+  const location    = useLocation()
   const queryClient = useQueryClient()
 
-  // Derive current page theme from the active route
   const theme = getTheme(location.pathname)
 
   const { data: user, isLoading, error } = useQuery({
@@ -59,53 +58,61 @@ export default function Layout() {
   if (!user) return null
 
   return (
-    <div className="flex flex-col" style={{ height: '100vh', background: theme.bg }}>
+    <div className="flex" style={{ height: '100vh', background: theme.bg }}>
 
-      {/* Fixed navbar — white, with border + accent colors from the active page theme */}
+      {/* Vertical sidebar */}
       <nav
-        className="flex items-center shrink-0 px-5 gap-1"
-        style={{ height: '48px', borderBottom: `1px solid ${theme.border}`, background: theme.bg, position: 'sticky', top: 0, zIndex: 10 }}
+        className="flex flex-col shrink-0 py-5 px-3"
+        style={{ width: '200px', borderRight: `1px solid ${theme.border}`, background: theme.bg }}
       >
-        <span className="text-sm font-extrabold mr-6 tracking-tight" style={{ color: theme.accent }}>
+        {/* Logo */}
+        <span className="text-base font-extrabold tracking-tight px-3 mb-6" style={{ color: theme.accent }}>
           LockNIn
         </span>
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+
+        {/* Main nav items */}
+        <div className="flex flex-col gap-0.5 flex-1">
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+              style={({ isActive }) =>
+                isActive ? { background: theme.activeBg, color: theme.accent } : { color: '#94A3B8' }
+              }
+            >
+              <Icon size={15} strokeWidth={2} />
+              {label}
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Bottom: profile + logout */}
+        <div className="flex flex-col gap-0.5">
           <NavLink
-            key={to}
-            to={to}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+            to="/profile"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
             style={({ isActive }) =>
               isActive ? { background: theme.activeBg, color: theme.accent } : { color: '#94A3B8' }
             }
           >
-            <Icon size={14} strokeWidth={2} />
-            {label}
+            <User size={15} strokeWidth={2} />
+            Profile
           </NavLink>
-        ))}
-        <div className="flex-1" />
-        <NavLink
-          to="/profile"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
-          style={({ isActive }) =>
-            isActive ? { background: theme.activeBg, color: theme.accent } : { color: '#94A3B8' }
-          }
-        >
-          <User size={14} strokeWidth={2} />
-          {user.fullname}
-        </NavLink>
-        <button
-          onClick={() => logoutMutation.mutate()}
-          disabled={logoutMutation.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer hover:bg-rose-50"
-          style={{ color: '#FECDD3' }}
-        >
-          <LogOut size={14} strokeWidth={2} />
-          {logoutMutation.isPending ? 'Logging out…' : 'Logout'}
-        </button>
+          <button
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer hover:bg-rose-50 text-left"
+            style={{ color: '#FECDD3' }}
+          >
+            <LogOut size={15} strokeWidth={2} />
+            {logoutMutation.isPending ? 'Logging out…' : 'Logout'}
+          </button>
+        </div>
       </nav>
 
-      {/* Main content — offset by sidebar width */}
-      <main className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+      {/* Main content */}
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
         <Outlet />
       </main>
     </div>

@@ -155,10 +155,74 @@ export default function Chat() {
     const pending: PendingRequest[] = friendData?.pending ?? []
  
     return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-full overflow-hidden">
 
-        {/* Left sidebar */}
-        <aside className="w-64 flex flex-col border-r border-violet-200 bg-violet-50 shrink-0 overflow-y-auto">
+        {/* Message area */}
+        <div className="flex-1 flex flex-col min-w-0">
+        {activeConv ? (
+            <>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-violet-200 bg-white shrink-0">
+                <h2 className="text-base font-bold text-violet-900">{activeConv.name}</h2>
+                <p className="text-xs text-slate-400">{activeConv.type === 'dm' ? 'Direct message' : 'Group chat'}</p>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-white">
+                {messages.length === 0 && (
+                <p className="text-sm text-slate-400 text-center mt-8">No messages yet. Say hi!</p>
+                )}
+                {messages.map(msg => {
+                const isMe = msg.sender === me?.username
+                return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                    <div className="max-w-xs lg:max-w-md">
+                        {!isMe && <p className="text-xs text-slate-400 mb-0.5 ml-1">{msg.sender}</p>}
+                        <div className={`px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
+                        isMe ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                        }`}>
+                        {msg.content}
+                        </div>
+                    </div>
+                    </div>
+                )
+                })}
+                <div ref={bottomRef} />
+            </div>
+
+            {/* Compose */}
+            <div className="px-6 py-4 border-t border-violet-200 bg-white shrink-0">
+                <div className="flex gap-3 items-end">
+                <textarea
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Message…"
+                    rows={1}
+                    className="flex-1 resize-none text-sm px-3.5 py-2.5 rounded-xl border border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-violet-50"
+                />
+                <button
+                    onClick={sendMessage}
+                    disabled={!draft.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 cursor-pointer shrink-0"
+                >
+                    Send
+                </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">Enter to send · Shift+Enter for new line</p>
+            </div>
+            </>
+        ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-white">
+            <MessageCircle size={48} className="text-violet-300 mb-4" />
+            <h2 className="text-lg font-bold text-slate-700 mb-1">No conversation open</h2>
+            <p className="text-sm text-slate-400">Add a friend on the right, then click their name to start a DM.</p>
+            </div>
+        )}
+        </div>
+
+        {/* Right sidebar */}
+        <aside className="w-64 flex flex-col border-l border-violet-200 bg-violet-50 shrink-0 overflow-y-auto overflow-x-hidden">
 
         {/* Study Group */}
         <div className="px-4 pt-5 pb-3 border-b border-violet-200">
@@ -203,7 +267,7 @@ export default function Chat() {
                   value={groupNameInput}
                   onChange={e => { setGroupNameInput(e.target.value); setGroupError('') }}
                   placeholder="Group name"
-                  className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  className="flex-1 min-w-0 text-sm px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"
                 />
                 <button
                   type="submit"
@@ -223,7 +287,7 @@ export default function Chat() {
                   value={joinCodeInput}
                   onChange={e => { setJoinCodeInput(e.target.value.toUpperCase()); setGroupError('') }}
                   placeholder="Join code"
-                  className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400 font-mono uppercase"
+                  className="flex-1 min-w-0 text-sm px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400 font-mono uppercase"
                 />
                 <button
                   type="submit"
@@ -246,7 +310,7 @@ export default function Chat() {
                 onChange={e => { setAddInput(e.target.value); setAddError('') }}
                 onKeyDown={e => e.key === 'Enter' && addFriendMutation.mutate()}
                 placeholder="Username"
-                className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"
+                className="flex-1 min-w-0 text-sm px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"
             />
             <button
                 onClick={() => addFriendMutation.mutate()}
@@ -331,70 +395,6 @@ export default function Chat() {
             </div>
         )}
         </aside>
-
-        {/* Message area */}
-        <div className="flex-1 flex flex-col min-w-0">
-        {activeConv ? (
-            <>
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-violet-200 bg-white shrink-0">
-                <h2 className="text-base font-bold text-violet-900">{activeConv.name}</h2>
-                <p className="text-xs text-slate-400">{activeConv.type === 'dm' ? 'Direct message' : 'Group chat'}</p>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-white">
-                {messages.length === 0 && (
-                <p className="text-sm text-slate-400 text-center mt-8">No messages yet. Say hi!</p>
-                )}
-                {messages.map(msg => {
-                const isMe = msg.sender === me?.username
-                return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className="max-w-xs lg:max-w-md">
-                        {!isMe && <p className="text-xs text-slate-400 mb-0.5 ml-1">{msg.sender}</p>}
-                        <div className={`px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
-                        isMe ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                        }`}>
-                        {msg.content}
-                        </div>
-                    </div>
-                    </div>
-                )
-                })}
-                <div ref={bottomRef} />
-            </div>
-
-            {/* Compose */}
-            <div className="px-6 py-4 border-t border-violet-200 bg-white shrink-0">
-                <div className="flex gap-3 items-end">
-                <textarea
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Message…"
-                    rows={1}
-                    className="flex-1 resize-none text-sm px-3.5 py-2.5 rounded-xl border border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-violet-50"
-                />
-                <button
-                    onClick={sendMessage}
-                    disabled={!draft.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 cursor-pointer shrink-0"
-                >
-                    Send
-                </button>
-                </div>
-                <p className="text-xs text-slate-400 mt-1.5">Enter to send · Shift+Enter for new line</p>
-            </div>
-            </>
-        ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-white">
-            <MessageCircle size={48} className="text-violet-300 mb-4" />
-            <h2 className="text-lg font-bold text-slate-700 mb-1">No conversation open</h2>
-            <p className="text-sm text-slate-400">Add a friend on the left, then click their name to start a DM.</p>
-            </div>
-        )}
-        </div>
     </div>
     )
 }
