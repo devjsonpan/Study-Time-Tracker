@@ -36,7 +36,10 @@ from google.genai import types as genai_types  # typed config objects for contro
 load_dotenv('app.env')
 load_dotenv()
 
-app = Flask(__name__)
+# Serve the compiled React app from frontend/dist (built by Vite before deploy).
+# static_folder must point at the Vite output directory so Flask can find index.html
+# and the hashed asset files (main-abc123.js, etc.) that Vite generates.
+app = Flask(__name__, static_folder='frontend/dist', static_url_path='')
 
 # Railway injects DATABASE_URL as postgres://, but SQLAlchemy requires postgresql://
 database_url = os.getenv('DATABASE_URL', 'sqlite:///study_tracker.db')
@@ -1097,27 +1100,55 @@ def api_update_profile():
 
 @app.route('/api/user/<username>', methods=['GET'])
 def api_public_profile(username):
-    """Public profile — no auth required. Returns basic stats for any user by username."""
+    """Public profile — no auth required. Returns stats + heatmap for any user by username."""
     user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    sessions      = StudySession.query.filter_by(username=username).all()
+    sessions      = StudySession.query.filter_by(username=username).order_by(StudySession.start_datetime).all()
     total_minutes = sum(
         int((s.end_datetime - s.start_datetime).total_seconds() / 60)
         for s in sessions
     )
+
+    # This week's study (Monday → now, naive UTC)
+    today      = date.today()
+    week_start = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+    week_mins  = sum(
+        int((s.end_datetime - s.start_datetime).total_seconds() / 60)
+        for s in sessions
+        if s.start_datetime >= week_start
+    )
+
+    # GitHub-style heatmap: daily aggregated hours for the last 365 days
+    heatmap_start = today - timedelta(days=364)
+    daily_study: dict = {}
+    for s in sessions:
+        day = s.start_datetime.date()
+        if day >= heatmap_start:
+            mins = (s.end_datetime - s.start_datetime).total_seconds() / 60.0
+            daily_study[day] = daily_study.get(day, 0) + mins
+    heatmap = [
+        {
+            'date':  (heatmap_start + timedelta(days=i)).strftime('%Y-%m-%d'),
+            'hours': round(daily_study.get(heatmap_start + timedelta(days=i), 0), 2),
+        }
+        for i in range(365)
+    ]
+
     group_name = None
     if user.group_id:
         group = StudyGroup.query.get(user.group_id)
         group_name = group.name if group else None
 
     return jsonify({
-        'username':       user.username,
-        'fullname':       user.fullname,
-        'total_sessions': len(sessions),
-        'total_hours':    round(total_minutes / 60, 1),
-        'group_name':     group_name,
+        'username':        user.username,
+        'fullname':        user.fullname,
+        'total_sessions':  len(sessions),
+        'total_hours':     round(total_minutes / 60, 1),
+        'this_week_hours': round(week_mins / 60, 1),
+        'group_name':      group_name,
+        'heatmap':         heatmap,
     })
 
 # =============================================================================
@@ -1355,7 +1386,7 @@ def api_summary_data():
         all_users.remove(current_user)
     all_users.insert(0, current_user)
 
-    friend_names, friend_study_hours, friend_break_hours = [], [], []
+    friend_names, friend_usernames, friend_study_hours, friend_break_hours = [], [], [], []
     friend_today_study, friend_today_break = [], []
 
     for user in all_users:
@@ -1380,6 +1411,7 @@ def api_summary_data():
         today_break = sum(calculate_duration_mins(b.start_datetime, b.end_datetime, today) for b in user_today_breaks)
 
         friend_names.append(user.fullname)
+        friend_usernames.append(user.username)
         friend_study_hours.append(round(total_study_mins / 60, 2))
         friend_break_hours.append(round(total_break_mins / 60, 2))
         friend_today_study.append(round(today_study / 60, 2))
@@ -1387,11 +1419,11 @@ def api_summary_data():
 
     # Sort leaderboard by weekly study hours (descending) — zip keeps the lists aligned
     sorted_data = sorted(
-        zip(friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break),
+        zip(friend_study_hours, friend_break_hours, friend_names, friend_usernames, friend_today_study, friend_today_break),
         reverse=True
     )
     if sorted_data:
-        friend_study_hours, friend_break_hours, friend_names, friend_today_study, friend_today_break = map(list, zip(*sorted_data))
+        friend_study_hours, friend_break_hours, friend_names, friend_usernames, friend_today_study, friend_today_break = map(list, zip(*sorted_data))
 
     my_sessions = StudySession.query.filter_by(username=current_username).order_by(StudySession.start_datetime).all()
     my_breaks   = BreakEntry.query.filter_by(username=current_username).order_by(BreakEntry.start_datetime).all()
@@ -1483,6 +1515,7 @@ def api_summary_data():
         'has_group':         has_group,
         'group_info':        group_info,
         'friend_names':      friend_names,
+        'friend_usernames':  friend_usernames,
         'friend_study_hours': friend_study_hours,
         'friend_break_hours': friend_break_hours,
         'friend_today_study': friend_today_study,
@@ -1897,6 +1930,27 @@ def cancel_reminder(item_id, item_type):
     job_id = f'reminder_{item_type}_{item_id}'
     if _scheduler.get_job(job_id):
         _scheduler.remove_job(job_id)
+
+# =============================================================================
+# React catch-all — serve index.html for any route React Router handles.
+# =============================================================================
+# Every non-API route (e.g. /home, /study, /user/:username) is a client-side
+# React Router route. Without this, a hard refresh or direct URL navigation
+# returns Flask's 404 instead of the app. The rule is: if no Flask route matched,
+# serve index.html and let React Router take over.
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    from flask import send_from_directory
+    import os as _os
+    dist = _os.path.join(app.root_path, 'frontend', 'dist')
+    # If the path corresponds to a real static asset (JS, CSS, images), serve it directly.
+    # Otherwise fall back to index.html so React Router can handle the route.
+    file_path = _os.path.join(dist, path)
+    if path and _os.path.exists(file_path):
+        return send_from_directory(dist, path)
+    return send_from_directory(dist, 'index.html')
 
 # =============================================================================
 # Scheduler + App Entry Point

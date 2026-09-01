@@ -1,0 +1,5 @@
+[build]
+buildCommand = "cd frontend && npm install && npm run build"
+
+[deploy]
+startCommand = "flask db upgrade && gunicorn --worker-class eventlet -w 1 app:app"
