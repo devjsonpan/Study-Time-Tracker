@@ -9,3 +9,4 @@ study_tracker.db
 venv/
 .vscode/
 .claude/
+.playwright-mcp/

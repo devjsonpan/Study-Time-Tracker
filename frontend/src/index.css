@@ -1,0 +1,22 @@
+/* Google Fonts must be imported before everything else — CSS rule */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+
+/* Tailwind v4 */
+@import "tailwindcss";
+
+html, body {
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+}
+
+/* Themed button hover — filter works for any background color set via inline style */
+.btn-primary:hover:not(:disabled) { filter: brightness(0.88); }
+.btn-primary:disabled { opacity: 0.45; }
+.btn-primary { transition: filter 150ms ease; }
+
+.btn-secondary:hover:not(:disabled) { opacity: 0.75; }
+.btn-secondary { transition: opacity 150ms ease; }
