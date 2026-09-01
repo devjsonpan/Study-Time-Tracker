@@ -19,7 +19,7 @@ from apscheduler.schedulers.background import BackgroundScheduler  # runs functi
 
 from collections import defaultdict        # dict that auto-initializes missing keys (used for aggregating study/break totals)
 from datetime import datetime, timedelta   # date math throughout the app
-import os, re, secrets, string, time, pytz  # pytz for timezones; secrets for cryptographically secure join codes
+import os, re, secrets, string, time, pytz, threading  # pytz for timezones; secrets for cryptographically secure join codes
 
 from dotenv import load_dotenv             # loads app.env into os.environ at startup
 import requests as http_requests           # outbound HTTP — Brevo email API, Supabase token verification
@@ -268,7 +268,8 @@ def send_reminder_email(to_email, fullname, items):
     body = (
         f"Hi {fullname},\n\nYou have an upcoming homework deadline:\n\n"
         + "\n".join(lines)
-        + "\n\nGood luck! — LockNIn"
+        + "\n\nLock in and get it done!"
+        + "\n\nTo turn off reminders, go to Profile > Email Reminders."
     )
 
     if not api_key:
@@ -1843,31 +1844,38 @@ def on_send_message(data):
 # a dedicated APScheduler job fires exactly 1 hour before the deadline.
 # No polling — each item has its own job keyed by f'reminder_{type}_{id}'.
 
+# Lock + sent-key set prevent duplicate emails when two tasks share the same deadline.
+# Both jobs can fire simultaneously in different threads — the lock ensures only the
+# first one actually sends; the second sees the key and returns immediately.
+_reminder_lock      = threading.Lock()
+_sent_reminder_keys: set = set()
+
 def _send_reminder_job(username, to_email, fullname, due_str):
-    # Query all incomplete tasks due within the same minute as this job's target time,
-    # bundle them into one email, then cancel the other pending jobs so they don't double-send.
-    target = datetime.fromisoformat(due_str)
-    window_start = target - timedelta(minutes=1)
-    window_end   = target + timedelta(minutes=1)
+    # APScheduler runs this in a background thread — app.app_context() required for DB access.
+    with app.app_context():
+        target = datetime.fromisoformat(due_str)
+        # Dedup key: one email per user per due-minute, even if multiple jobs fire at once
+        key = (username, target.replace(second=0, microsecond=0))
+        with _reminder_lock:
+            if key in _sent_reminder_keys:
+                return
+            _sent_reminder_keys.add(key)
 
-    tasks = HomeworkTask.query.filter(
-        HomeworkTask.username == username,
-        HomeworkTask.is_completed == False,
-        HomeworkTask.due_date >= window_start,
-        HomeworkTask.due_date <= window_end,
-    ).all()
+        window_start = target - timedelta(minutes=1)
+        window_end   = target + timedelta(minutes=1)
 
-    if not tasks:
-        return
+        tasks = HomeworkTask.query.filter(
+            HomeworkTask.username == username,
+            HomeworkTask.is_completed == False,
+            HomeworkTask.due_date >= window_start,
+            HomeworkTask.due_date <= window_end,
+        ).all()
 
-    items = [{'name': f"{t.course}: {t.task_name}", 'due': t.due_date.strftime('%b %d at %I:%M %p')} for t in tasks]
-    send_reminder_email(to_email, fullname, items)
+        if not tasks:
+            return
 
-    # Cancel sibling jobs so they don't fire and send duplicate emails
-    for t in tasks:
-        job_id = f'reminder_homework_{t.id}'
-        if _scheduler.get_job(job_id):
-            _scheduler.remove_job(job_id)
+        items = [{'name': f"{t.course}: {t.task_name}", 'due': t.due_date.strftime('%b %d at %I:%M %p')} for t in tasks]
+        send_reminder_email(to_email, fullname, items)
 
 def schedule_reminder(item_id, item_type, due_datetime, user, name=''):
     # schedules a job to fire 1 hour before due_datetime
