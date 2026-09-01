@@ -426,7 +426,7 @@ export default function Import() {
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Import Schedule</h1>
         <p className="text-sm text-slate-400 mt-1 font-medium">
-          Paste any text — syllabus, email, class schedule — and AI will extract the tasks and events for you.
+          Paste your syllabus or class schedule and let the AI extract the tasks and events for you!
         </p>
       </div>
 
