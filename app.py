@@ -259,14 +259,14 @@ def send_reset_email(to_email, reset_code):
         print(f"Failed to send email: {e}")
         return False
 
-def send_reminder_email(to_email, username, items):
-    """Sends a deadline reminder listing upcoming homework tasks and events.
-    items is a list of dicts: {'type': 'homework'|'event', 'name': str, 'due': str}."""
+def send_reminder_email(to_email, fullname, items):
+    """Sends a homework deadline reminder.
+    items is a list of dicts: {'name': str, 'due': str}"""
     api_key = os.getenv('BREVO_API_KEY')
 
-    lines = [f"  - [{i['type'].upper()}] {i['name']} — due {i['due']}" for i in items]
+    lines = [f"  - {i['name']} — due {i['due']}" for i in items]
     body = (
-        f"Hi {username},\n\nYou have upcoming deadlines:\n\n"
+        f"Hi {fullname},\n\nYou have an upcoming homework deadline:\n\n"
         + "\n".join(lines)
         + "\n\nGood luck! — LockNIn"
     )
@@ -282,7 +282,7 @@ def send_reminder_email(to_email, username, items):
             json={
                 'sender': {'name': 'LockNIn', 'email': 'studytracker.noreply@gmail.com'},
                 'to': [{'email': to_email}],
-                'subject': 'Upcoming deadlines — LockNIn',
+                'subject': 'Upcoming homework deadline — LockNIn',
                 'textContent': body,
             },
             timeout=10,
@@ -509,8 +509,6 @@ def api_delete_account():
     # Cancel all pending reminder jobs before wiping DB rows
     for task in HomeworkTask.query.filter_by(username=username, is_completed=False).all():
         cancel_reminder(task.id, 'homework')
-    for event in Event.query.filter_by(username=username, is_completed=False).all():
-        cancel_reminder(event.id, 'event')
 
     # Delete all user data across every table
     StudySession.query.filter_by(username=username).delete()
@@ -655,7 +653,7 @@ def api_create_homework():
     # add a call to schedule_reminder if the user has reminders enabled
     user = User.query.filter_by(username=session['username']).first()
     if user.email_reminders:
-        schedule_reminder(task.id, 'homework', task.due_date, user)
+        schedule_reminder(task.id, 'homework', task.due_date, user, name=f"{task.course}: {task.task_name}")
 
     # Return the created task so React can optimistically add it without re-fetching
     return jsonify({
@@ -681,8 +679,8 @@ def api_complete_task(task_id):
         # reschedule the reminder when task is toggled back to incomplete
         user = User.query.filter_by(username=session['username']).first()
         if user.email_reminders:
-            schedule_reminder(task.id, 'homework', task.due_date, user)
-    
+            schedule_reminder(task.id, 'homework', task.due_date, user, name=f"{task.course}: {task.task_name}")
+
     return jsonify({'id': task.id, 'is_completed': task.is_completed})
 
 @app.route('/api/homework/<int:task_id>/importance', methods=['POST'])
@@ -734,8 +732,8 @@ def api_edit_task(task_id):
     cancel_reminder(task.id, 'homework')
     user = User.query.filter_by(username=session['username']).first()
     if user.email_reminders:
-        schedule_reminder(task.id, 'homework', task.due_date, user)
-    
+        schedule_reminder(task.id, 'homework', task.due_date, user, name=f"{task.course}: {task.task_name}")
+
     return jsonify({
         'id': task.id, 'course': task.course, 'task_name': task.task_name,
         'description': task.description, 'due_date': task.due_date.isoformat(),
@@ -785,10 +783,6 @@ def api_create_event():
     db.session.add(event)
     db.session.commit()
 
-    user = User.query.filter_by(username=session['username']).first()
-    if user.email_reminders:
-        schedule_reminder(event.id, 'event', event.start_datetime, user)
-
     return jsonify({
         'id': event.id, 'event_name': event.event_name,
         'start_datetime': event.start_datetime.isoformat(),
@@ -806,13 +800,6 @@ def api_complete_event(event_id):
         return jsonify({'error': 'Forbidden'}), 403
     event.is_completed = not event.is_completed
     db.session.commit()
-
-    if event.is_completed:
-        cancel_reminder(event.id, 'event')
-    else:
-        user = User.query.filter_by(username=session['username']).first()
-        if user.email_reminders:
-            schedule_reminder(event.id, 'event', event.start_datetime, user)
 
     return jsonify({'id': event.id, 'is_completed': event.is_completed})
 
@@ -836,7 +823,6 @@ def api_delete_event(event_id):
         return jsonify({'error': 'Forbidden'}), 403
     db.session.delete(event)
     db.session.commit()
-    cancel_reminder(event.id, 'event')
     return jsonify({'success': True})
 
 @app.route('/api/events/<int:event_id>', methods=['PUT'])
@@ -856,10 +842,6 @@ def api_edit_event(event_id):
     except (KeyError, ValueError):
         return jsonify({'error': 'Invalid datetime'}), 400
     db.session.commit()
-    cancel_reminder(event.id, 'event')
-    user = User.query.filter_by(username=session['username']).first()
-    if user.email_reminders:
-        schedule_reminder(event.id, 'event', event.start_datetime, user)
     return jsonify({
         'id': event.id, 'event_name': event.event_name,
         'start_datetime': event.start_datetime.isoformat(),
@@ -1096,22 +1078,14 @@ def api_update_profile():
 
     db.session.commit()
 
-    # When toggling reminders, sync scheduled jobs for all existing incomplete items
+    # When toggling reminders, sync scheduled jobs for all existing incomplete tasks
     if 'email_reminders' in data:
         upcoming_tasks = HomeworkTask.query.filter_by(username=user.username, is_completed=False).all()
-        upcoming_events = Event.query.filter_by(username=user.username, is_completed=False).all()
-
         for task in upcoming_tasks:
             if user.email_reminders:
-                schedule_reminder(task.id, 'homework', task.due_date, user)
+                schedule_reminder(task.id, 'homework', task.due_date, user, name=f"{task.course}: {task.task_name}")
             else:
                 cancel_reminder(task.id, 'homework')
-
-        for event in upcoming_events:
-            if user.email_reminders:
-                schedule_reminder(event.id, 'event', event.start_datetime, user)
-            else:
-                cancel_reminder(event.id, 'event')
     return jsonify({
         'username': user.username, 'fullname': user.fullname,
         'email': user.email, 'timezone': user.timezone,
@@ -1869,28 +1843,46 @@ def on_send_message(data):
 # a dedicated APScheduler job fires exactly 1 hour before the deadline.
 # No polling — each item has its own job keyed by f'reminder_{type}_{id}'.
 
-def _send_reminder_job(to_email, username, item_type, name, due_str):
-    # sends the actual email for one specific item
-    item = {
-        'type': item_type,
-        'name': name,
-        'due': due_str
-    }
-    send_reminder_email(to_email, username, [item])
+def _send_reminder_job(username, to_email, fullname, due_str):
+    # Query all incomplete tasks due within the same minute as this job's target time,
+    # bundle them into one email, then cancel the other pending jobs so they don't double-send.
+    target = datetime.fromisoformat(due_str)
+    window_start = target - timedelta(minutes=1)
+    window_end   = target + timedelta(minutes=1)
 
-def schedule_reminder(item_id, item_type, due_datetime, user):
+    tasks = HomeworkTask.query.filter(
+        HomeworkTask.username == username,
+        HomeworkTask.is_completed == False,
+        HomeworkTask.due_date >= window_start,
+        HomeworkTask.due_date <= window_end,
+    ).all()
+
+    if not tasks:
+        return
+
+    items = [{'name': f"{t.course}: {t.task_name}", 'due': t.due_date.strftime('%b %d at %I:%M %p')} for t in tasks]
+    send_reminder_email(to_email, fullname, items)
+
+    # Cancel sibling jobs so they don't fire and send duplicate emails
+    for t in tasks:
+        job_id = f'reminder_homework_{t.id}'
+        if _scheduler.get_job(job_id):
+            _scheduler.remove_job(job_id)
+
+def schedule_reminder(item_id, item_type, due_datetime, user, name=''):
     # schedules a job to fire 1 hour before due_datetime
     # job id: f'reminder_{item_type}_{item_id}'
+    # name param kept for call-site compatibility but unused — job queries the DB itself at fire time
     run_date = due_datetime - timedelta(hours=1)
     if run_date > get_current_datetime(user.timezone):
         job_id = f'reminder_{item_type}_{item_id}'
         _scheduler.add_job(
-            _send_reminder_job, 
-            trigger='date', 
-            run_date=run_date, 
-            id=job_id, 
-            replace_existing=True, 
-            args=[user.email, user.username, item_type, '', due_datetime.strftime('%b %d at %I:%M %p')])
+            _send_reminder_job,
+            trigger='date',
+            run_date=run_date,
+            id=job_id,
+            replace_existing=True,
+            args=[user.username, user.email, user.fullname, due_datetime.isoformat()])
 
 def cancel_reminder(item_id, item_type):
     # cancels the job if it exists
