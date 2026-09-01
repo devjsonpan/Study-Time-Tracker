@@ -18,7 +18,7 @@ import Events   from './pages/Events'
 import Study    from './pages/Study'
 import Overview from './pages/Overview'
 import Import   from './pages/Import'
-import Chat          from './pages/chat'
+import Chat          from './pages/Chat'
 import Profile       from './pages/Profile'
 import PublicProfile from './pages/PublicProfile'
 

@@ -33,11 +33,6 @@ function formatDuration(start: string, end: string) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
-}
 
 function formatDateLong(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
