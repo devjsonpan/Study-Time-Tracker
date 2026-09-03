@@ -12,8 +12,8 @@ import { signInWithGoogle } from '../lib/supabase'
 
 type Step = 'login' | 'email' | 'code'
 
-const inputCls = 'w-full px-3 py-2 rounded-xl border border-amber-200 dark:border-amber-900/30 bg-amber-50/40 dark:bg-[#1c1814] text-sm font-medium text-[#1c1814] dark:text-[#f5f0e8] focus:outline-none focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-700 transition'
-const labelCls = 'block text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1'
+const inputCls = 'w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/40 text-sm font-medium text-[#1c1814] focus:outline-none focus:ring-2 focus:ring-amber-300 transition'
+const labelCls = 'block text-xs font-bold text-amber-600 uppercase tracking-wider mb-1'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -103,31 +103,31 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50 dark:bg-[#1c1814] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-amber-50 px-4">
       <div className="w-full max-w-sm">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">
+          <h1 className="text-3xl font-extrabold text-amber-600 tracking-tight">
             LockNIn
           </h1>
-          <p className="text-sm text-amber-500/60 dark:text-amber-600/50 mt-1 font-medium">
+          <p className="text-sm text-amber-500/60 mt-1 font-medium">
             {step === 'login' && 'Welcome back!'}
             {step === 'email' && 'Reset your password'}
             {step === 'code'  && 'Enter your code'}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-[#2a2420] rounded-2xl border border-amber-100 dark:border-amber-900/20 shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-6">
 
           {/* Shared error/success banners */}
           {successMsg && (
-            <p className="text-sm font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 rounded-xl mb-4">
+            <p className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl mb-4">
               {successMsg}
             </p>
           )}
           {error && (
-            <p className="text-sm font-semibold text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 rounded-xl mb-4">
+            <p className="text-sm font-semibold text-rose-500 bg-rose-50 px-3 py-2 rounded-xl mb-4">
               {error}
             </p>
           )}
@@ -153,9 +153,9 @@ export default function Login() {
 
               {/* Divider */}
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-amber-100 dark:bg-amber-900/30" />
+                <div className="flex-1 h-px bg-amber-100" />
                 <span className="text-xs font-bold text-amber-400/60">or</span>
-                <div className="flex-1 h-px bg-amber-100 dark:bg-amber-900/30" />
+                <div className="flex-1 h-px bg-amber-100" />
               </div>
 
               {/* Google OAuth */}
@@ -173,7 +173,7 @@ export default function Login() {
                     setGooglePending(false)
                   }
                 }}
-                className="w-full py-2.5 bg-white dark:bg-[#1c1814] border border-amber-200 dark:border-amber-900/30 text-[#1c1814] dark:text-[#f5f0e8] font-bold rounded-xl text-sm transition-colors cursor-pointer shadow-sm hover:bg-amber-50 dark:hover:bg-[#2a2420] flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-2.5 bg-white border border-amber-200 text-[#1c1814] font-bold rounded-xl text-sm transition-colors cursor-pointer shadow-sm hover:bg-amber-50 flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {/* Google "G" SVG logo */}
                 <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -198,7 +198,7 @@ export default function Login() {
           {/* ── Step 2: Email entry ── */}
           {step === 'email' && (
             <form onSubmit={handleForgot} className="space-y-4">
-              <p className="text-sm text-amber-700/60 dark:text-amber-400/50">
+              <p className="text-sm text-amber-700/60">
                 Enter the email linked to your account and we'll send a 6-digit code.
               </p>
               <div>
@@ -225,8 +225,8 @@ export default function Login() {
           {/* ── Step 3: Code + new password ── */}
           {step === 'code' && (
             <form onSubmit={handleReset} className="space-y-4">
-              <p className="text-sm text-amber-700/60 dark:text-amber-400/50">
-                Code sent to <span className="font-bold text-amber-600 dark:text-amber-400">{resetEmail}</span>. It expires in 10 minutes.
+              <p className="text-sm text-amber-700/60">
+                Code sent to <span className="font-bold text-amber-600">{resetEmail}</span>. It expires in 10 minutes.
               </p>
               <div>
                 <label className={labelCls}>6-digit code</label>
@@ -269,7 +269,7 @@ export default function Login() {
         </div>
 
         {step === 'login' && (
-          <p className="text-center text-xs text-amber-500/60 dark:text-amber-600/50 mt-4">
+          <p className="text-center text-xs text-amber-500/60 mt-4">
             No account?{' '}
             <Link to="/register" className="font-bold text-amber-500 hover:text-amber-600">
               Register here

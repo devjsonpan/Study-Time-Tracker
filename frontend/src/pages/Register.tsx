@@ -37,23 +37,23 @@ export default function Register() {
     })
   }
 
-  const inputCls = 'w-full px-3 py-2 rounded-xl border border-amber-200 dark:border-amber-900/30 bg-amber-50/40 dark:bg-[#1c1814] text-sm font-medium text-[#1c1814] dark:text-[#f5f0e8] focus:outline-none focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-700 transition'
-  const labelCls = 'block text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1'
+  const inputCls = 'w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/40 text-sm font-medium text-[#1c1814] focus:outline-none focus:ring-2 focus:ring-amber-300 transition'
+  const labelCls = 'block text-xs font-bold text-amber-600 uppercase tracking-wider mb-1'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-amber-50 dark:bg-[#1c1814] px-4 py-10">
+    <div className="min-h-screen flex items-center justify-center bg-amber-50 px-4 py-10">
       <div className="w-full max-w-sm">
 
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">
+          <h1 className="text-3xl font-extrabold text-amber-600 tracking-tight">
             LockNIn
           </h1>
-          <p className="text-sm text-amber-500/60 dark:text-amber-600/50 mt-1 font-medium">
+          <p className="text-sm text-amber-500/60 mt-1 font-medium">
             Create your account
           </p>
         </div>
 
-        <div className="bg-white dark:bg-[#2a2420] rounded-2xl border border-amber-100 dark:border-amber-900/20 shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className={labelCls}>Full Name</label>
@@ -85,7 +85,7 @@ export default function Register() {
             </div>
 
             {error && (
-              <p className="text-sm font-semibold text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 rounded-xl">
+              <p className="text-sm font-semibold text-rose-500 bg-rose-50 px-3 py-2 rounded-xl">
                 {error}
               </p>
             )}
@@ -100,7 +100,7 @@ export default function Register() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-amber-500/60 dark:text-amber-600/50 mt-4">
+        <p className="text-center text-xs text-amber-500/60 mt-4">
           Already have an account?{' '}
           <Link to="/login" className="font-bold text-amber-500 hover:text-amber-600">
             Sign in
