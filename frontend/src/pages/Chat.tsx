@@ -20,6 +20,8 @@ export default function Chat() {
     const [groupNameInput, setGroupNameInput] = useState('')
     const [joinCodeInput, setJoinCodeInput] = useState('')
     const [groupError, setGroupError] = useState('')
+    const [showMembers, setShowMembers] = useState(false)
+    const [memberSearch, setMemberSearch] = useState('')
     const bottomRef = useRef<HTMLDivElement>(null)
     const activeConvIdRef = useRef<number | null>(null)
 
@@ -155,6 +157,7 @@ export default function Chat() {
     const pending: PendingRequest[] = friendData?.pending ?? []
  
     return (
+    <>
     <div className="flex h-full overflow-hidden">
 
         {/* Message area */}
@@ -244,13 +247,12 @@ export default function Chat() {
                   {leaveGroupMutation.isPending ? '…' : 'Leave'}
                 </button>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {groupData.members.map(m => (
-                  <span key={m} className="text-xs px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">
-                    @{m}
-                  </span>
-                ))}
-              </div>
+              <button
+                onClick={() => { setShowMembers(true); setMemberSearch('') }}
+                className="w-full text-xs font-semibold text-indigo-500 hover:text-indigo-700 cursor-pointer text-left"
+              >
+                {groupData.members.length} member{groupData.members.length !== 1 ? 's' : ''} · View all
+              </button>
               <button
                 onClick={openGroupConv}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold hover:bg-indigo-200 cursor-pointer transition-colors"
@@ -376,7 +378,7 @@ export default function Chat() {
             <div className="px-4 pt-[23px] pb-4 border-t border-indigo-200 shrink-0">
             <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2">Recent</p>
             <ul className="space-y-0.5">
-                {conversations.map(conv => (
+                {conversations.slice(0, 3).map(conv => (
                 <li key={conv.id}>
                     <button
                     onClick={() => setActiveConv(conv)}
@@ -396,5 +398,50 @@ export default function Chat() {
         )}
         </aside>
     </div>
+
+    {/* Members modal */}
+    {showMembers && groupData && (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+            onClick={() => setShowMembers(false)}
+        >
+            <div
+                className="bg-white rounded-2xl shadow-xl w-80 max-h-[70vh] flex flex-col overflow-hidden border border-indigo-100"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="px-5 pt-5 pb-3 border-b border-indigo-100">
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-bold text-slate-800">{groupData.name} members</p>
+                        <button onClick={() => setShowMembers(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <input
+                        autoFocus
+                        value={memberSearch}
+                        onChange={e => setMemberSearch(e.target.value)}
+                        placeholder="Search members…"
+                        className="w-full text-sm px-3 py-2 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                </div>
+                <ul className="overflow-y-auto px-3 py-3 space-y-0.5">
+                    {groupData.members
+                        .filter(m => m.toLowerCase().includes(memberSearch.toLowerCase()))
+                        .map(m => (
+                        <li key={m} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-indigo-50">
+                            <div className="w-7 h-7 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 shrink-0">
+                                {m[0].toUpperCase()}
+                            </div>
+                            <span className="text-sm text-slate-700 font-medium">@{m}</span>
+                        </li>
+                    ))}
+                    {groupData.members.filter(m => m.toLowerCase().includes(memberSearch.toLowerCase())).length === 0 && (
+                        <li className="text-xs text-slate-400 text-center py-4">No members match.</li>
+                    )}
+                </ul>
+            </div>
+        </div>
+    )}
+    </>
     )
 }
