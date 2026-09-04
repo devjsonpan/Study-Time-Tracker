@@ -58,8 +58,9 @@ db      = SQLAlchemy(app)
 bcrypt  = Bcrypt(app)
 migrate = Migrate(app, db)
 
-# async_mode='gevent' pairs with the GeventWebSocketWorker gunicorn worker for WebSocket support in prod.
-socketio = SocketIO(app, cors_allowed_origins='*', async_mode='gevent')
+# async_mode='threading' works on any Python version with no extra deps.
+# simple-websocket (in requirements.txt) provides WebSocket support in this mode.
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
 
 # =============================================================================
 # Models
