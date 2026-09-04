@@ -1135,7 +1135,8 @@ def api_public_profile(username):
     heatmap = [
         {
             'date':  (heatmap_start + timedelta(days=i)).strftime('%Y-%m-%d'),
-            'hours': round(daily_study.get(heatmap_start + timedelta(days=i), 0), 2),
+            # Cap at 24h/day — anything above indicates corrupted session data
+            'hours': min(round(daily_study.get(heatmap_start + timedelta(days=i), 0) / 60, 2), 24.0),
         }
         for i in range(365)
     ]
