@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { UserPlus, Check, X, MessageCircle, Users } from 'lucide-react'
 import {
@@ -197,7 +197,7 @@ export default function Chat() {
                     value={draft}
                     onChange={e => setDraft(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Messageâ€¦"
+                    placeholder="Message…"
                     rows={1}
                     className="flex-1 resize-none text-sm px-3.5 py-2.5 rounded-xl border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-indigo-50"
                 />
@@ -209,7 +209,7 @@ export default function Chat() {
                     Send
                 </button>
                 </div>
-                <p className="text-xs text-slate-400 mt-1.5">Enter to send Â· Shift+Enter for new line</p>
+                <p className="text-xs text-slate-400 mt-1.5">Enter to send · Shift+Enter for new line</p>
             </div>
             </>
         ) : (
@@ -222,13 +222,13 @@ export default function Chat() {
         </div>
 
         {/* Right sidebar */}
-        <aside className="w-64 flex flex-col border-l border-indigo-200 bg-indigo-50 shrink-0 overflow-y-auto overflow-x-hidden">
+        <aside className="w-64 flex flex-col border-l border-indigo-200 bg-white shrink-0 overflow-hidden">
 
         {/* Study Group */}
         <div className="px-4 pt-5 pb-3 border-b border-indigo-200">
           <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2">Study Group</p>
           {groupLoading ? (
-            <p className="text-xs text-slate-400 animate-pulse">Loadingâ€¦</p>
+            <p className="text-xs text-slate-400 animate-pulse">Loading…</p>
           ) : groupData ? (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
@@ -241,7 +241,7 @@ export default function Chat() {
                   disabled={leaveGroupMutation.isPending}
                   className="text-xs font-semibold text-rose-400 hover:text-rose-600 shrink-0 cursor-pointer disabled:opacity-50"
                 >
-                  {leaveGroupMutation.isPending ? 'â€¦' : 'Leave'}
+                  {leaveGroupMutation.isPending ? '…' : 'Leave'}
                 </button>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -274,7 +274,7 @@ export default function Chat() {
                   disabled={!groupNameInput.trim() || createGroupMutation.isPending}
                   className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 cursor-pointer shrink-0"
                 >
-                  {createGroupMutation.isPending ? 'â€¦' : 'Create'}
+                  {createGroupMutation.isPending ? '…' : 'Create'}
                 </button>
               </form>
               <div className="flex items-center gap-2">
@@ -294,7 +294,7 @@ export default function Chat() {
                   disabled={!joinCodeInput.trim() || joinGroupMutation.isPending}
                   className="px-2.5 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold hover:bg-indigo-200 disabled:opacity-40 cursor-pointer shrink-0"
                 >
-                  {joinGroupMutation.isPending ? 'â€¦' : 'Join'}
+                  {joinGroupMutation.isPending ? '…' : 'Join'}
                 </button>
               </form>
             </div>
@@ -345,8 +345,8 @@ export default function Chat() {
             </div>
         )}
 
-        {/* Friends list */}
-        <div className="px-4 pt-3 pb-2 flex-1">
+        {/* Friends list — flex-1 + overflow so only this section scrolls */}
+        <div className="px-4 pt-3 pb-2 flex-1 overflow-y-auto">
             <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2">
             Friends {friends.length > 0 && `(${friends.length})`}
             </p>
@@ -371,9 +371,9 @@ export default function Chat() {
             )}
         </div>
 
-        {/* Recent conversations */}
+        {/* Recent conversations — shrink-0 so it anchors at the bottom, pt-[23px] matches compose border-t height */}
         {conversations.length > 0 && (
-            <div className="px-4 pb-4 border-t border-indigo-200 pt-3">
+            <div className="px-4 pt-[23px] pb-4 border-t border-indigo-200 shrink-0">
             <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2">Recent</p>
             <ul className="space-y-0.5">
                 {conversations.map(conv => (

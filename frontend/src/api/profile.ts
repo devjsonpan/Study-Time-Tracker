@@ -69,7 +69,9 @@ export type PublicProfile = {
   fullname: string
   total_sessions: number
   total_hours: number
+  this_week_hours: number
   group_name: string | null
+  heatmap: { date: string; hours: number }[]
 }
 
 export async function getPublicProfile(username: string): Promise<PublicProfile> {

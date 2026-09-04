@@ -9,6 +9,7 @@ export type SummaryData = {
   group_info: { name: string; join_code: string } | null
   // Leaderboard — parallel arrays, one entry per group member (current user first)
   friend_names: string[]
+  friend_usernames: string[]
   friend_study_hours: number[]    // weekly totals
   friend_break_hours: number[]
   friend_today_study: number[]    // today only
