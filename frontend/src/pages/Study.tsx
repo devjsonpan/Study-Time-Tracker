@@ -97,9 +97,13 @@ function SessionPanel({ theme, onDirtyChange }: { theme: PageTheme; onDirtyChang
 
   useEffect(() => {
     if (phase !== 'running') return
-    const interval = setInterval(() => setElapsed(s => s + 1), 1000)
+    // Derive elapsed from wall clock so the timer stays accurate when the tab is in the background.
+    const origin = startTime!.getTime()
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - origin) / 1000))
+    }, 1000)
     return () => clearInterval(interval)
-  }, [phase])
+  }, [phase, startTime])
 
   const saveMutation = useMutation({
     mutationFn: createSession,
@@ -268,9 +272,13 @@ function BreakPanel({ theme, onDirtyChange }: { theme: PageTheme; onDirtyChange:
 
   useEffect(() => {
     if (!isRunning) return
-    const interval = setInterval(() => setElapsed(s => s + 1), 1000)
+    // Derive elapsed from wall clock so the timer stays accurate when the tab is in the background.
+    const origin = startTime!.getTime()
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - origin) / 1000))
+    }, 1000)
     return () => clearInterval(interval)
-  }, [isRunning])
+  }, [isRunning, startTime])
 
   const createMutation = useMutation({
     mutationFn: createBreak,

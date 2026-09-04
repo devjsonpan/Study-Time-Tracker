@@ -74,6 +74,10 @@ export default function PomoPanel({
   const studyStartRef  = useRef<Date | null>(null)
   const breakStartRef  = useRef<Date | null>(null)
   const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Absolute wall-clock timestamp (ms) when the current running phase expires.
+  // Updated on phase start and on every resume from pause. Used to derive timeLeft
+  // from Date.now() so the countdown is accurate even when the tab is throttled.
+  const phaseEndAtRef  = useRef<number>(0)
 
   // Callback ref avoids stale closures inside the setInterval tick.
   // Updated every render cycle so it always captures the latest state.
@@ -106,21 +110,21 @@ export default function PomoPanel({
     }
   }, [phase, currentRound, settings, queryClient])
 
-  // Countdown — clears and restarts whenever phase or isPaused changes
+  // Countdown — clears and restarts whenever phase or isPaused changes.
+  // Derives remaining time from Date.now() vs phaseEndAtRef so the countdown
+  // stays accurate even when the browser throttles the interval in a background tab.
   useEffect(() => {
     if ((phase !== 'studying' && phase !== 'break') || isPaused) {
       if (intervalRef.current) clearInterval(intervalRef.current)
       return
     }
     intervalRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
-          clearInterval(intervalRef.current!)
-          onTimerEndRef.current()
-          return 0
-        }
-        return t - 1
-      })
+      const remaining = Math.max(0, Math.ceil((phaseEndAtRef.current - Date.now()) / 1000))
+      setTimeLeft(remaining)
+      if (remaining <= 0) {
+        clearInterval(intervalRef.current!)
+        onTimerEndRef.current()
+      }
     }, 1000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [phase, isPaused])
@@ -146,16 +150,20 @@ export default function PomoPanel({
   // --- Actions ---
 
   function startStudy() {
+    const totalSecs = settings.studyMins * 60
     studyStartRef.current = new Date()
-    setTimeLeft(settings.studyMins * 60)
+    phaseEndAtRef.current = Date.now() + totalSecs * 1000
+    setTimeLeft(totalSecs)
     setPhase('studying')
     setIsPaused(false)
   }
 
   function startBreak() {
-    breakStartRef.current = new Date()
     const isLong = currentRound % settings.totalRounds === 0
-    setTimeLeft((isLong ? settings.longBreakMins : settings.shortBreakMins) * 60)
+    const totalSecs = (isLong ? settings.longBreakMins : settings.shortBreakMins) * 60
+    breakStartRef.current = new Date()
+    phaseEndAtRef.current = Date.now() + totalSecs * 1000
+    setTimeLeft(totalSecs)
     setPhase('break')
     setIsPaused(false)
     setSaveError(null)
@@ -351,7 +359,13 @@ export default function PomoPanel({
 
           {(phase === 'studying' || phase === 'break') && (
             <>
-              <button onClick={() => setIsPaused(p => !p)}
+              <button onClick={() => {
+                if (isPaused) {
+                  // Resuming: push the expiry forward by the remaining seconds
+                  phaseEndAtRef.current = Date.now() + timeLeft * 1000
+                }
+                setIsPaused(p => !p)
+              }}
                 className="btn-secondary px-6 py-2 font-bold rounded-xl text-sm cursor-pointer"
                 style={{ background: theme.activeBg, color: theme.accent }}>
                 {isPaused ? 'Resume' : 'Pause'}

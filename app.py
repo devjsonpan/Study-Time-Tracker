@@ -1120,14 +1120,18 @@ def api_public_profile(username):
         if s.start_datetime >= week_start
     )
 
-    # GitHub-style heatmap: daily aggregated hours for the last 365 days
+    # GitHub-style heatmap: daily aggregated hours for the last 365 days.
+    # Use calculate_duration_mins to correctly distribute sessions that span midnight.
     heatmap_start = today - timedelta(days=364)
     daily_study: dict = {}
     for s in sessions:
         day = s.start_datetime.date()
-        if day >= heatmap_start:
-            mins = (s.end_datetime - s.start_datetime).total_seconds() / 60.0
-            daily_study[day] = daily_study.get(day, 0) + mins
+        last_day = min(s.end_datetime.date(), today)
+        while day <= last_day:
+            if day >= heatmap_start:
+                mins = calculate_duration_mins(s.start_datetime, s.end_datetime, day)
+                daily_study[day] = daily_study.get(day, 0) + mins
+            day += timedelta(days=1)
     heatmap = [
         {
             'date':  (heatmap_start + timedelta(days=i)).strftime('%Y-%m-%d'),
