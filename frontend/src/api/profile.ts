@@ -70,6 +70,8 @@ export type PublicProfile = {
   total_sessions: number
   total_hours: number
   this_week_hours: number
+  current_streak: number
+  longest_streak: number
   group_name: string | null
   heatmap: { date: string; hours: number }[]
 }

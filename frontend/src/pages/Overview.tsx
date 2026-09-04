@@ -656,15 +656,28 @@ function StatsPanel({ theme }: { theme: PageTheme }) {
       {d.friend_names.length > 0 && (
         <StatSection title="This week's leaderboard" theme={theme}>
           {/* Horizontal bars so member names are legible regardless of group size.
-              Height scales with member count; scrollable when group is large. */}
+              Height scales with member count; scrollable when group is large.
+              Current user's bar uses a muted tint so their entry stands out. */}
           <div style={{ overflowY: 'auto', maxHeight: 320 }}>
             <div style={{ height: Math.max(120, d.friend_names.length * 52) }}>
               <Bar
                 data={{
-                  labels: d.friend_names,
+                  labels: d.friend_names.map((name, i) =>
+                    d.friend_usernames[i] === d.current_username ? 'You' : name
+                  ),
                   datasets: [
-                    { label: 'Study hours', data: d.friend_study_hours, backgroundColor: theme.accent + 'CC' },
-                    { label: 'Break hours', data: d.friend_break_hours, backgroundColor: theme.border + '88' },
+                    {
+                      label: 'Study hours',
+                      data: d.friend_study_hours,
+                      backgroundColor: d.friend_usernames.map(u =>
+                        u === d.current_username ? theme.activeBg : theme.accent + 'CC'
+                      ),
+                    },
+                    {
+                      label: 'Break hours',
+                      data: d.friend_break_hours,
+                      backgroundColor: theme.border + '88',
+                    },
                   ],
                 }}
                 options={{
@@ -672,7 +685,17 @@ function StatsPanel({ theme }: { theme: PageTheme }) {
                   responsive: true,
                   maintainAspectRatio: false,
                   plugins: { legend: { position: 'top' } },
-                  scales: { x: { beginAtZero: true } },
+                  scales: {
+                    x: { beginAtZero: true },
+                    y: {
+                      ticks: {
+                        // Bold the current user's label on the y-axis
+                        font: (ctx) => ({
+                          weight: d.friend_usernames[ctx.index] === d.current_username ? 'bold' : 'normal',
+                        }),
+                      },
+                    },
+                  },
                 }}
               />
             </div>

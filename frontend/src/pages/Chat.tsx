@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { UserPlus, Check, X, MessageCircle, Users } from 'lucide-react'
 import {
@@ -166,7 +167,13 @@ export default function Chat() {
             <>
             {/* Header */}
             <div className="px-6 py-4 border-b border-indigo-200 bg-white shrink-0">
-                <h2 className="text-base font-bold text-indigo-900">{activeConv.name}</h2>
+                {activeConv.type === 'dm' ? (
+                    <Link to={`/user/${activeConv.name}`} className="text-base font-bold text-indigo-900 hover:underline">
+                        {activeConv.name}
+                    </Link>
+                ) : (
+                    <h2 className="text-base font-bold text-indigo-900">{activeConv.name}</h2>
+                )}
                 <p className="text-xs text-slate-400">{activeConv.type === 'dm' ? 'Direct message' : 'Group chat'}</p>
             </div>
 
@@ -365,7 +372,7 @@ export default function Chat() {
                     <div className="w-7 h-7 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 shrink-0">
                         {f.username[0].toUpperCase()}
                     </div>
-                    {f.username}
+                    <span className="truncate">{f.username}</span>
                     </button>
                 </li>
                 ))}
@@ -428,11 +435,17 @@ export default function Chat() {
                     {groupData.members
                         .filter(m => m.toLowerCase().includes(memberSearch.toLowerCase()))
                         .map(m => (
-                        <li key={m} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-indigo-50">
-                            <div className="w-7 h-7 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 shrink-0">
-                                {m[0].toUpperCase()}
-                            </div>
-                            <span className="text-sm text-slate-700 font-medium">@{m}</span>
+                        <li key={m}>
+                            <Link
+                                to={`/user/${m}`}
+                                onClick={() => setShowMembers(false)}
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-indigo-50"
+                            >
+                                <div className="w-7 h-7 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 shrink-0">
+                                    {m[0].toUpperCase()}
+                                </div>
+                                <span className="text-sm text-slate-700 font-medium">@{m}</span>
+                            </Link>
                         </li>
                     ))}
                     {groupData.members.filter(m => m.toLowerCase().includes(memberSearch.toLowerCase())).length === 0 && (

@@ -18,7 +18,7 @@ from flask_socketio import SocketIO, join_room, emit  # real-time bidirectional 
 from apscheduler.schedulers.background import BackgroundScheduler  # runs functions on a schedule in a background thread (email reminders)
 
 from collections import defaultdict        # dict that auto-initializes missing keys (used for aggregating study/break totals)
-from datetime import datetime, timedelta   # date math throughout the app
+from datetime import datetime, timedelta, date   # date math throughout the app
 import os, re, secrets, string, time, pytz, threading  # pytz for timezones; secrets for cryptographically secure join codes
 
 from dotenv import load_dotenv             # loads app.env into os.environ at startup
@@ -1141,12 +1141,33 @@ def api_public_profile(username):
         group = StudyGroup.query.get(user.group_id)
         group_name = group.name if group else None
 
+    # Streak: current = consecutive days ending today; longest = all-time max run
+    current_streak = 0
+    longest_streak = 0
+    if daily_study:
+        check = today
+        while daily_study.get(check, 0) > 0:
+            current_streak += 1
+            check -= timedelta(days=1)
+        run  = 0
+        scan = min(daily_study.keys())
+        while scan <= today:
+            if daily_study.get(scan, 0) > 0:
+                run += 1
+                if run > longest_streak:
+                    longest_streak = run
+            else:
+                run = 0
+            scan += timedelta(days=1)
+
     return jsonify({
         'username':        user.username,
         'fullname':        user.fullname,
         'total_sessions':  len(sessions),
         'total_hours':     round(total_minutes / 60, 1),
         'this_week_hours': round(week_mins / 60, 1),
+        'current_streak':  current_streak,
+        'longest_streak':  longest_streak,
         'group_name':      group_name,
         'heatmap':         heatmap,
     })

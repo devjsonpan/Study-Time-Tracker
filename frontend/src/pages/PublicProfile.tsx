@@ -1,9 +1,10 @@
 // Public profile page — accessible without login, linked from friends, group members, leaderboard.
 // Lives at /user/:username. Shows study stats and a GitHub-style heatmap; no private data.
 
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getPublicProfile } from '../api/profile'
+import { getMe } from '../api/auth'
 
 // --- Heatmap helpers (same logic as Overview stats panel) ---
 
@@ -95,6 +96,7 @@ function Heatmap({ data }: { data: { date: string; hours: number }[] }) {
 
 export default function PublicProfile() {
   const { username } = useParams<{ username: string }>()
+  const navigate = useNavigate()
 
   const { data: profile, isLoading, isError } = useQuery({
     queryKey: ['publicProfile', username],
@@ -102,6 +104,15 @@ export default function PublicProfile() {
     enabled: !!username,
     retry: false,
   })
+
+  // Best-effort — works when logged in, silently undefined when not
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+    retry: false,
+  })
+
+  const isOwnProfile = !!me && me.username === username
 
   if (isLoading) {
     return (
@@ -116,9 +127,9 @@ export default function PublicProfile() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-3">
         <p className="text-2xl font-extrabold text-slate-700">User not found</p>
         <p className="text-slate-400 text-sm">@{username} doesn't exist.</p>
-        <Link to="/home" className="text-sm font-bold text-violet-500 hover:text-violet-600">
-          ← Go home
-        </Link>
+        <button onClick={() => navigate(-1)} className="text-sm font-bold text-violet-500 hover:text-violet-600 cursor-pointer">
+          ← Go back
+        </button>
       </div>
     )
   }
@@ -129,43 +140,54 @@ export default function PublicProfile() {
     <div className="min-h-screen bg-slate-50 px-4 py-12">
       <div className="max-w-lg mx-auto">
 
-        {/* Back */}
-        <Link
-          to="/home"
-          className="text-xs font-bold text-slate-400 hover:text-slate-600 mb-8 inline-block"
+        {/* Back — go to previous page in history */}
+        <button
+          onClick={() => navigate(-1)}
+          className="text-xs font-bold text-slate-400 hover:text-slate-600 mb-8 inline-block cursor-pointer"
         >
           ← Back
-        </Link>
+        </button>
 
         {/* Avatar + identity */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 mb-4 text-center">
           <div className="w-20 h-20 rounded-full bg-violet-100 flex items-center justify-center mx-auto mb-4">
             <span className="text-3xl font-extrabold text-violet-600">
-              {profile.fullname.charAt(0).toUpperCase()}
+              {profile.username.charAt(0).toUpperCase()}
             </span>
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-800">{profile.fullname}</h1>
+          <h1 className="text-2xl font-extrabold text-slate-800">
+            {profile.fullname}
+          </h1>
           <p className="text-sm font-semibold text-slate-400 mt-0.5">@{profile.username}</p>
-          {profile.group_name && (
-            <span className="inline-block mt-3 text-xs font-bold px-3 py-1 rounded-full bg-violet-50 text-violet-600">
-              {profile.group_name}
-            </span>
+          {(isOwnProfile || profile.group_name) && (
+            <div className="flex items-center justify-center gap-2 flex-wrap mt-3">
+              {isOwnProfile && (
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-400">
+                  your profile
+                </span>
+              )}
+              {profile.group_name && (
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-violet-50 text-violet-600">
+                  {profile.group_name}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Stats grid */}
+        {/* Stats row: this week, current streak, longest streak */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 text-center">
-            <p className="text-2xl font-extrabold text-violet-600">{profile.this_week_hours}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5 leading-tight">This week</p>
+            <p className="text-3xl font-extrabold text-violet-600">{profile.this_week_hours}<span className="text-sm font-semibold text-slate-400 ml-0.5">h</span></p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">This week</p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 text-center">
-            <p className="text-2xl font-extrabold text-violet-600">{profile.total_hours}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5 leading-tight">Total hrs</p>
+            <p className="text-3xl font-extrabold text-violet-600">{profile.current_streak}<span className="text-sm font-semibold text-slate-400 ml-0.5">d</span></p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">Streak</p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 text-center">
-            <p className="text-2xl font-extrabold text-violet-600">{profile.total_sessions}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5 leading-tight">Sessions</p>
+            <p className="text-3xl font-extrabold text-violet-600">{profile.longest_streak}<span className="text-sm font-semibold text-slate-400 ml-0.5">d</span></p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">Best streak</p>
           </div>
         </div>
 
