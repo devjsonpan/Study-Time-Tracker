@@ -11,14 +11,14 @@ export type PageTheme = {
 }
 
 const THEMES: Record<string, PageTheme> = {
-  '/home':     { bg: '#FFF0F0', border: '#F2A2A2', accent: '#9B1C1C', activeBg: '#FDD8D8' },
-  '/homework': { bg: '#FFF7F0', border: '#F8C68D', accent: '#9A3412', activeBg: '#FDE9C8' },
-  '/events':   { bg: '#FFFEF0', border: '#FFF6A1', accent: '#854D0E', activeBg: '#FFFBD0' },
-  '/study':    { bg: '#F0FFF4', border: '#CBFAAC', accent: '#15803D', activeBg: '#DFFFCE' },
-  '/overview': { bg: '#EEF4FF', border: '#96B9FF', accent: '#1E40AF', activeBg: '#DBE8FF' },
-  '/import':   { bg: '#F0FEFE', border: '#A6F0F5', accent: '#0E7490', activeBg: '#D9FAFC' },
-  '/profile':  { bg: '#FDF5FF', border: '#F6C7FF', accent: '#7E22CE', activeBg: '#F9EEFF' },
-  '/chat':     { bg: '#F3F0FF', border: '#A7A1FF', accent: '#4C1D95', activeBg: '#E4E0FF' },
+  '/home':     { bg: '#FFECEC', border: '#FF8585', accent: '#B91C1C', activeBg: '#FFD5D5' },
+  '/homework': { bg: '#FFF2E5', border: '#FFA040', accent: '#C2410C', activeBg: '#FFE4C0' },
+  '/events':   { bg: '#FFFCE5', border: '#FFE030', accent: '#854D0E', activeBg: '#FFF7B0' },
+  '/study':    { bg: '#E8FFEE', border: '#50D880', accent: '#15803D', activeBg: '#C0F5D0' },
+  '/overview': { bg: '#E5F3FF', border: '#4FA8FF', accent: '#1D4ED8', activeBg: '#BDD9FF' },
+  '/import':   { bg: '#E5FDFF', border: '#20D0E0', accent: '#0E7490', activeBg: '#B0F5FA' },
+  '/profile':  { bg: '#F5E8FF', border: '#C070F0', accent: '#7E22CE', activeBg: '#E8C8FF' },
+  '/chat':     { bg: '#EEEAFF', border: '#7B70FF', accent: '#4338CA', activeBg: '#D5CFFF' },
 }
 
 const FALLBACK: PageTheme = THEMES['/home']
