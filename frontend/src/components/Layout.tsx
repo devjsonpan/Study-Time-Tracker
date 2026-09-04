@@ -102,8 +102,8 @@ export default function Layout() {
           <button
             onClick={() => logoutMutation.mutate()}
             disabled={logoutMutation.isPending}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer hover:bg-rose-50 text-left"
-            style={{ color: '#FECDD3' }}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer text-left"
+            style={{ color: '#E11D48' }}
           >
             <LogOut size={15} strokeWidth={2} />
             {logoutMutation.isPending ? 'Logging out…' : 'Logout'}
