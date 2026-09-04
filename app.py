@@ -58,9 +58,8 @@ db      = SQLAlchemy(app)
 bcrypt  = Bcrypt(app)
 migrate = Migrate(app, db)
 
-# async_mode='threading' uses the standard threading model.
-# eventlet/gevent are faster but require extra install steps — threading works out of the box.
-socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
+# async_mode='gevent' pairs with the GeventWebSocketWorker gunicorn worker for WebSocket support in prod.
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='gevent')
 
 # =============================================================================
 # Models

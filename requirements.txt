@@ -6,7 +6,6 @@ blinker==1.9.0
 cachelib==0.13.0
 click==8.3.0
 colorama==0.4.6
-eventlet==0.41.2
 Flask==3.1.2
 Flask-Bcrypt==1.0.1
 Flask-Migrate==4.1.0
@@ -14,6 +13,8 @@ Flask-Session==0.8.0
 Flask-SocketIO==5.6.1
 Flask-SQLAlchemy==3.1.1
 google-genai==2.12.1
+gevent==24.11.1
+gevent-websocket==0.10.1
 greenlet==3.2.4
 gunicorn==25.1.0
 itsdangerous==2.2.0
