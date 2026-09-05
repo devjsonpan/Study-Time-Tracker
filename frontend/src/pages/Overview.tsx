@@ -556,6 +556,7 @@ function StatsPanel({ theme }: { theme: PageTheme }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['summary'],
     queryFn: getSummary,
+    refetchInterval: 30_000, // keep today's study/break totals fresh while the page is open
   })
   const [heatmapYear, setHeatmapYear] = useState<number | 'last365'>(new Date().getFullYear())
 

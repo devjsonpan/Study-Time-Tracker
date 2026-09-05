@@ -1397,6 +1397,16 @@ def api_summary_data():
     today_end_dt   = today_start_dt + timedelta(days=1)
     week_start    = today - timedelta(days=today.weekday())  # Monday of the current week
 
+    # Sessions are stored as naive UTC. Convert today's local midnight boundaries to UTC
+    # so "today" filters correctly for users in non-UTC timezones (e.g. EDT sessions done
+    # after 8pm local appear as next-day UTC and were being excluded from "Studied today").
+    try:
+        _tz_obj = pytz.timezone(user_tz)
+    except pytz.UnknownTimeZoneError:
+        _tz_obj = pytz.UTC
+    today_start_utc = _tz_obj.localize(today_start_dt).astimezone(pytz.utc).replace(tzinfo=None)
+    today_end_utc   = _tz_obj.localize(today_end_dt).astimezone(pytz.utc).replace(tzinfo=None)
+
     has_group  = current_user.group_id is not None
     group_info = None
 
@@ -1425,16 +1435,23 @@ def api_summary_data():
         total_study_mins = sum((s.end_datetime - s.start_datetime).total_seconds() / 60.0 for s in user_sessions)
         total_break_mins = sum((b.end_datetime - b.start_datetime).total_seconds() / 60.0 for b in user_breaks)
 
-        # For "today" stats, use a range query so sessions that started yesterday but end today are included
+        # For "today" stats, use UTC boundaries so sessions stored as naive UTC are
+        # correctly matched to the user's local calendar day.
         user_today_sessions = StudySession.query.filter_by(username=user.username).filter(
-            StudySession.start_datetime < today_end_dt, StudySession.end_datetime >= today_start_dt
+            StudySession.start_datetime < today_end_utc, StudySession.end_datetime >= today_start_utc
         ).all()
         user_today_breaks = BreakEntry.query.filter_by(username=user.username).filter(
-            BreakEntry.start_datetime < today_end_dt, BreakEntry.end_datetime >= today_start_dt
+            BreakEntry.start_datetime < today_end_utc, BreakEntry.end_datetime >= today_start_utc
         ).all()
-        # calculate_duration_mins clips each session to only the minutes that fall on today
-        today_study = sum(calculate_duration_mins(s.start_datetime, s.end_datetime, today) for s in user_today_sessions)
-        today_break = sum(calculate_duration_mins(b.start_datetime, b.end_datetime, today) for b in user_today_breaks)
+        # Clip each session to the UTC window for today so overnight sessions don't double-count
+        today_study = sum(
+            (min(s.end_datetime, today_end_utc) - max(s.start_datetime, today_start_utc)).total_seconds() / 60.0
+            for s in user_today_sessions
+        )
+        today_break = sum(
+            (min(b.end_datetime, today_end_utc) - max(b.start_datetime, today_start_utc)).total_seconds() / 60.0
+            for b in user_today_breaks
+        )
 
         friend_names.append(user.fullname)
         friend_usernames.append(user.username)
@@ -1522,18 +1539,26 @@ def api_summary_data():
     for s in my_sessions:
         course_totals[s.course] += (s.end_datetime - s.start_datetime).total_seconds() / 60.0
 
-    # Today's stats for the summary cards
+    # Today's stats for the summary cards — use UTC boundaries (see comment above)
     today_sessions_q = StudySession.query.filter_by(username=current_username).filter(
-        StudySession.start_datetime < today_end_dt, StudySession.end_datetime >= today_start_dt
+        StudySession.start_datetime < today_end_utc, StudySession.end_datetime >= today_start_utc
     ).all()
     today_breaks_q = BreakEntry.query.filter_by(username=current_username).filter(
-        BreakEntry.start_datetime < today_end_dt, BreakEntry.end_datetime >= today_start_dt
+        BreakEntry.start_datetime < today_end_utc, BreakEntry.end_datetime >= today_start_utc
     ).all()
     today_course_totals = defaultdict(float)
     for s in today_sessions_q:
-        today_course_totals[s.course] += calculate_duration_mins(s.start_datetime, s.end_datetime, today)
-    today_study_mins = sum(calculate_duration_mins(s.start_datetime, s.end_datetime, today) for s in today_sessions_q)
-    today_break_mins = sum(calculate_duration_mins(b.start_datetime, b.end_datetime, today) for b in today_breaks_q)
+        today_course_totals[s.course] += (
+            min(s.end_datetime, today_end_utc) - max(s.start_datetime, today_start_utc)
+        ).total_seconds() / 60.0
+    today_study_mins = sum(
+        (min(s.end_datetime, today_end_utc) - max(s.start_datetime, today_start_utc)).total_seconds() / 60.0
+        for s in today_sessions_q
+    )
+    today_break_mins = sum(
+        (min(b.end_datetime, today_end_utc) - max(b.start_datetime, today_start_utc)).total_seconds() / 60.0
+        for b in today_breaks_q
+    )
 
     return jsonify({
         'current_username': current_username,
