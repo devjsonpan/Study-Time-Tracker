@@ -1111,13 +1111,20 @@ def api_public_profile(username):
         for s in sessions
     )
 
-    # This week's study (Monday → now, naive UTC)
-    today      = date.today()
-    week_start = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+    # This week's study — convert the user's local Monday midnight to UTC so sessions
+    # stored as naive UTC are correctly included regardless of the user's timezone.
+    profile_tz = user.timezone or 'UTC'
+    try:
+        _profile_tz_obj = pytz.timezone(profile_tz)
+    except pytz.UnknownTimeZoneError:
+        _profile_tz_obj = pytz.UTC
+    today = datetime.now(pytz.utc).astimezone(_profile_tz_obj).date()
+    week_start_local = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+    week_start_utc   = _profile_tz_obj.localize(week_start_local).astimezone(pytz.utc).replace(tzinfo=None)
     week_mins  = sum(
         int((s.end_datetime - s.start_datetime).total_seconds() / 60)
         for s in sessions
-        if s.start_datetime >= week_start
+        if s.start_datetime >= week_start_utc
     )
 
     # GitHub-style heatmap: daily aggregated hours for the last 365 days.
@@ -1406,6 +1413,9 @@ def api_summary_data():
         _tz_obj = pytz.UTC
     today_start_utc = _tz_obj.localize(today_start_dt).astimezone(pytz.utc).replace(tzinfo=None)
     today_end_utc   = _tz_obj.localize(today_end_dt).astimezone(pytz.utc).replace(tzinfo=None)
+    week_start_utc  = _tz_obj.localize(
+        datetime.combine(week_start, datetime.min.time())
+    ).astimezone(pytz.utc).replace(tzinfo=None)
 
     has_group  = current_user.group_id is not None
     group_info = None
@@ -1427,10 +1437,10 @@ def api_summary_data():
 
     for user in all_users:
         user_sessions = StudySession.query.filter_by(username=user.username).filter(
-            StudySession.start_datetime >= week_start
+            StudySession.start_datetime >= week_start_utc
         ).all()
         user_breaks = BreakEntry.query.filter_by(username=user.username).filter(
-            BreakEntry.start_datetime >= week_start
+            BreakEntry.start_datetime >= week_start_utc
         ).all()
         total_study_mins = sum((s.end_datetime - s.start_datetime).total_seconds() / 60.0 for s in user_sessions)
         total_break_mins = sum((b.end_datetime - b.start_datetime).total_seconds() / 60.0 for b in user_breaks)
